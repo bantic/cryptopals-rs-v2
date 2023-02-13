@@ -8,7 +8,7 @@ pub mod set1 {
 
     use crate::{
         hex::{ToHexBytes, ToHexStr},
-        xor::{break_single_key, Xor},
+        xor::{break_single_key, break_single_key_multilines, Xor},
     };
 
     pub fn challenge2() {
@@ -26,6 +26,13 @@ pub mod set1 {
         println!("✅ Set 1 Challenge 3:\n\t{CHALLENGE3_CIPHER} break single-key xor =>\n\t{out}");
     }
 
+    pub fn challenge4() {
+        let input = include_str!("../files/set-1-challenge-4.txt");
+        let out = break_single_key_multilines(input);
+
+        println!("✅ Set 1 Challenge 4:\n\t{out}");
+    }
+
     #[cfg(test)]
     mod tests {
         use crate::{
@@ -34,7 +41,7 @@ pub mod set1 {
                 CHALLENGE2_EXPECTED, CHALLENGE2_LHS, CHALLENGE2_RHS, CHALLENGE3_CIPHER,
                 CHALLENGE3_EXPECTED,
             },
-            xor::{break_single_key, Xor},
+            xor::{break_single_key, break_single_key_multilines, Xor},
         };
 
         #[test]
@@ -50,6 +57,13 @@ pub mod set1 {
         fn test_challenge3() {
             let out = break_single_key(&CHALLENGE3_CIPHER.to_hex_bytes());
             assert_eq!(out, CHALLENGE3_EXPECTED);
+        }
+
+        #[test]
+        fn test_challenge4() {
+            let input = include_str!("../files/set-1-challenge-4.txt");
+            let out = break_single_key_multilines(input);
+            assert_eq!(out, "Now that the party is jumping\n");
         }
     }
 }
