@@ -3,6 +3,22 @@
 // This value signifies to put a padding '=' in the output
 const PAD_ENCODE: u8 = 65;
 
+pub trait ToBase64 {
+    fn to_base64(&self) -> String;
+}
+
+impl ToBase64 for &[u8] {
+    fn to_base64(&self) -> String {
+        bytes_to_b64_str(self)
+    }
+}
+
+impl ToBase64 for &str {
+    fn to_base64(&self) -> String {
+        self.as_bytes().to_base64()
+    }
+}
+
 fn top_n_bits(x: &u8, n: u8) -> u8 {
     x >> (8 - n)
 }
@@ -59,22 +75,17 @@ fn bytes_to_b64_str(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::base64::bytes_to_b64_str;
+    use crate::base64::ToBase64;
 
     #[test]
     fn test_to_base64() {
-        assert_eq!(bytes_to_b64_str("Man".as_bytes()), "TWFu");
-        assert_eq!(bytes_to_b64_str("Ma".as_bytes()), "TWE=");
-        assert_eq!(bytes_to_b64_str("M".as_bytes()), "TQ==");
-        assert_eq!(
-            bytes_to_b64_str("light work.".as_bytes()),
-            "bGlnaHQgd29yay4="
-        );
-        assert_eq!(
-            bytes_to_b64_str("light work".as_bytes()),
-            "bGlnaHQgd29yaw=="
-        );
-        assert_eq!(bytes_to_b64_str("light wor".as_bytes()), "bGlnaHQgd29y");
-        assert_eq!(bytes_to_b64_str("light wo".as_bytes()), "bGlnaHQgd28=");
+        assert_eq!("Man".to_base64(), "TWFu");
+        assert_eq!("Man".to_base64(), "TWFu");
+        assert_eq!("Ma".to_base64(), "TWE=");
+        assert_eq!("M".to_base64(), "TQ==");
+        assert_eq!("light work.".to_base64(), "bGlnaHQgd29yay4=");
+        assert_eq!("light work".to_base64(), "bGlnaHQgd29yaw==");
+        assert_eq!("light wor".to_base64(), "bGlnaHQgd29y");
+        assert_eq!("light wo".to_base64(), "bGlnaHQgd28=");
     }
 }
