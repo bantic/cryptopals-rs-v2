@@ -1,3 +1,5 @@
+use cryptopals::sets::set1::challenge2;
+
 fn main() {
-    println!("Hello, world!");
+    challenge2();
 }

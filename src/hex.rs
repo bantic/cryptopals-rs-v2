@@ -32,10 +32,7 @@ fn from_str(s: &str) -> Vec<u8> {
         .map(ascii_byte_to_u8)
         .collect::<Vec<u8>>()
         .chunks_exact(2)
-        .map(|a| {
-            dbg!(a);
-            dbg!((a[0] << 4) | a[1])
-        })
+        .map(|a| (a[0] << 4) | a[1])
         .collect()
 }
 
