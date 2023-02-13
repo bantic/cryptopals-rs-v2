@@ -2,10 +2,13 @@ pub mod set1 {
     const CHALLENGE2_LHS: &str = "1c0111001f010100061a024b53535009181c";
     const CHALLENGE2_RHS: &str = "686974207468652062756c6c277320657965";
     const CHALLENGE2_EXPECTED: &str = "746865206b696420646f6e277420706c6179";
+    const CHALLENGE3_CIPHER: &str =
+        "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736";
+    const CHALLENGE3_EXPECTED: &str = "Cooking MC's like a pound of bacon";
 
     use crate::{
         hex::{ToHexBytes, ToHexStr},
-        xor::Xor,
+        xor::{break_single_key, Xor},
     };
 
     pub fn challenge2() {
@@ -17,12 +20,21 @@ pub mod set1 {
         println!("✅ Set 1 Challenge 2:\n\t{CHALLENGE2_LHS} xor {CHALLENGE2_RHS} =>\n\t{out}");
     }
 
+    pub fn challenge3() {
+        let bytes = CHALLENGE3_CIPHER.to_hex_bytes();
+        let out = break_single_key(&bytes);
+        println!("✅ Set 1 Challenge 3:\n\t{CHALLENGE3_CIPHER} break single-key xor =>\n\t{out}");
+    }
+
     #[cfg(test)]
     mod tests {
         use crate::{
             hex::{ToHexBytes, ToHexStr},
-            sets::set1::{CHALLENGE2_EXPECTED, CHALLENGE2_LHS, CHALLENGE2_RHS},
-            xor::Xor,
+            sets::set1::{
+                CHALLENGE2_EXPECTED, CHALLENGE2_LHS, CHALLENGE2_RHS, CHALLENGE3_CIPHER,
+                CHALLENGE3_EXPECTED,
+            },
+            xor::{break_single_key, Xor},
         };
 
         #[test]
@@ -32,6 +44,12 @@ pub mod set1 {
                 .xor(&CHALLENGE2_RHS.to_hex_bytes())
                 .to_hex();
             assert_eq!(out, CHALLENGE2_EXPECTED);
+        }
+
+        #[test]
+        fn test_challenge3() {
+            let out = break_single_key(&CHALLENGE3_CIPHER.to_hex_bytes());
+            assert_eq!(out, CHALLENGE3_EXPECTED);
         }
     }
 }
