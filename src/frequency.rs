@@ -75,6 +75,15 @@ fn counts(s: &[char]) -> HashMap<FreqChar, usize> {
 pub fn score(bytes: &[u8]) -> f32 {
     let l = bytes.len();
     let mut score = 0.0;
+    if !bytes.is_ascii() {
+        return f32::MAX;
+    }
+    if bytes
+        .iter()
+        .any(|&b| (b as char) != '\n' && b.to_ascii_lowercase().is_ascii_control())
+    {
+        return f32::MAX;
+    }
     let bytes: Vec<char> = bytes
         .iter()
         .flat_map(|&b| (b as char).to_lowercase())
