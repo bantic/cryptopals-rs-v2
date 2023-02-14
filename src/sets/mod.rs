@@ -5,6 +5,10 @@ pub mod set1 {
     const CHALLENGE3_CIPHER: &str =
         "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736";
     const CHALLENGE3_EXPECTED: &str = "Cooking MC's like a pound of bacon";
+    const CHALLENGE5_INPUT: &str =
+        "Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal";
+    const CHALLENGE5_EXPECTED: &str= "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f";
+    const CHALLENGE5_KEY: &str = "ICE";
 
     use crate::{
         hex::{ToHexBytes, ToHexStr},
@@ -29,8 +33,17 @@ pub mod set1 {
     pub fn challenge4() {
         let input = include_str!("../files/set-1-challenge-4.txt");
         let out = break_single_key_multilines(input);
+        let out = out.trim_end();
 
         println!("✅ Set 1 Challenge 4:\n\t{out}");
+    }
+
+    pub fn challenge5() {
+        let bytes = CHALLENGE5_INPUT.as_bytes();
+        let key = CHALLENGE5_KEY.as_bytes();
+        let out = bytes.xor(key);
+        let out = out.to_hex();
+        println!("✅ Set 1 Challenge 5:\n\t{out}");
     }
 
     #[cfg(test)]
@@ -39,7 +52,7 @@ pub mod set1 {
             hex::{ToHexBytes, ToHexStr},
             sets::set1::{
                 CHALLENGE2_EXPECTED, CHALLENGE2_LHS, CHALLENGE2_RHS, CHALLENGE3_CIPHER,
-                CHALLENGE3_EXPECTED,
+                CHALLENGE3_EXPECTED, CHALLENGE5_EXPECTED, CHALLENGE5_INPUT, CHALLENGE5_KEY,
             },
             xor::{break_single_key, break_single_key_multilines, Xor},
         };
@@ -64,6 +77,15 @@ pub mod set1 {
             let input = include_str!("../files/set-1-challenge-4.txt");
             let out = break_single_key_multilines(input);
             assert_eq!(out, "Now that the party is jumping\n");
+        }
+
+        #[test]
+        fn test_challenge5() {
+            let bytes = CHALLENGE5_INPUT.as_bytes();
+            let key = CHALLENGE5_KEY.as_bytes();
+            let out = bytes.xor(key);
+            let out = out.to_hex();
+            assert_eq!(out, CHALLENGE5_EXPECTED);
         }
     }
 }

@@ -76,6 +76,8 @@ pub fn score(bytes: &[u8]) -> f32 {
     let l = bytes.len();
     let mut score = 0.0;
     if !bytes.is_ascii() {
+        // TODO: we shouldn't disregard non-ascii output, this could
+        // drop actual messages (like ones w emoji in them)
         return f32::MAX;
     }
     if bytes
