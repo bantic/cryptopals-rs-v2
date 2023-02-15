@@ -12,8 +12,9 @@ pub mod set1 {
     const CHALLENGE6_INPUT: &str = include_str!("../files/6.txt");
 
     use crate::{
+        base64::DecodeBase64,
         hex::{ToHexBytes, ToHexStr},
-        xor::{break_single_key, break_single_key_multilines, Xor},
+        xor::{break_single_key, break_single_key_multilines, find_repeating_xor_keysize, Xor},
     };
 
     pub fn challenge2() {
@@ -49,6 +50,7 @@ pub mod set1 {
 
     pub fn challenge6() {
         let input: String = CHALLENGE6_INPUT.lines().map(|l| l.trim()).collect();
+        let input = input.as_str().decode_base64();
     }
 
     #[cfg(test)]

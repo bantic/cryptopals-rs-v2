@@ -72,19 +72,19 @@ fn counts(s: &[char]) -> HashMap<FreqChar, usize> {
     counts
 }
 
-pub fn score(bytes: &[u8]) -> f32 {
+pub fn score(bytes: &[u8]) -> u32 {
     let l = bytes.len();
     let mut score = 0.0;
     if !bytes.is_ascii() {
         // TODO: we shouldn't disregard non-ascii output, this could
         // drop actual messages (like ones w emoji in them)
-        return f32::MAX;
+        return u32::MAX;
     }
     if bytes
         .iter()
         .any(|&b| (b as char) != '\n' && b.to_ascii_lowercase().is_ascii_control())
     {
-        return f32::MAX;
+        return u32::MAX;
     }
     let bytes: Vec<char> = bytes
         .iter()
@@ -96,5 +96,5 @@ pub fn score(bytes: &[u8]) -> f32 {
         score += (expected - actual).powi(2);
     });
 
-    score
+    (1000.0 * score) as u32
 }

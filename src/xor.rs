@@ -1,4 +1,4 @@
-use std::{cmp::min, collections::HashMap, iter::zip};
+use std::{cmp::min, iter::zip};
 
 use itertools::Itertools;
 
@@ -18,56 +18,43 @@ fn xor(lhs: &[u8], rhs: &[u8]) -> Vec<u8> {
     zip(lhs, rhs.iter().cycle()).map(|(l, r)| l ^ r).collect()
 }
 
-fn single_key_options(cipher: &[u8]) -> HashMap<u8, f32> {
-    let mut scores = HashMap::<u8, f32>::new();
-    for key in 0..=255 {
-        let decoded = cipher.xor(&[key]);
-        let score = score(&decoded);
-        scores.insert(key, score);
-    }
-    scores
-}
-
-pub fn best_single_key(cipher: &[u8]) -> (u8, f32) {
-    let scores = single_key_options(cipher);
-    let mut best_score = f32::MAX;
-    let mut best_key = 0;
-    for (key, score) in scores {
-        if score < best_score {
-            best_score = score;
-            best_key = key;
-        }
-    }
-
-    (best_key, best_score)
+fn single_key_options(cipher: &[u8]) -> impl Iterator<Item = (u32, u8, Vec<u8>)> + '_ {
+    (u8::MIN..=u8::MAX)
+        .map(|key| {
+            let decoded = cipher.xor(&[key]);
+            let score = score(&decoded);
+            (score, key, decoded)
+        })
+        .sorted_by_key(|x| x.0)
 }
 
 pub fn break_single_key(cipher: &[u8]) -> String {
-    let (best_key, _best_score) = best_single_key(cipher);
-    String::from_utf8_lossy(&cipher.xor(&[best_key])).into()
+    for (_score, _key, decoded) in single_key_options(cipher) {
+        // Return the first valid utf8 string from the options
+        if let Ok(out) = String::from_utf8(decoded) {
+            return out;
+        }
+    }
+    panic!("Could not find suitable utf8 decoded");
 }
 
 pub fn break_single_key_multilines(input: &str) -> String {
-    let mut best_score = f32::MAX;
-    let mut best_bytes = vec![];
-
-    for line in input.lines() {
-        let cipher = line.trim().to_hex_bytes();
-        let (cur_best_key, cur_best_score) = best_single_key(&cipher);
-        if cur_best_score < best_score {
-            best_score = cur_best_score;
-            best_bytes = cipher.xor(&[cur_best_key]);
-        }
+    match input
+        .lines()
+        .map(|l| l.trim())
+        .filter_map(|line| single_key_options(&line.to_hex_bytes()).next())
+        .sorted_by_key(|x| x.0)
+        .next()
+    {
+        Some((_score, _key, decoded)) => String::from_utf8_lossy(&decoded).into(),
+        None => panic!("Could not fine suitable line in break multiline"),
     }
-
-    String::from_utf8_lossy(&best_bytes).into()
 }
 
-// fn find_repeating_xor_keysize(bytes: &[u8]) -> std::iter::Rev<std::vec::IntoIter<(usize, u32)>> {
-fn find_repeating_xor_keysize(bytes: &[u8]) -> impl Iterator<Item = (usize, u32)> {
+pub fn find_repeating_xor_keysize(bytes: &[u8]) -> impl Iterator<Item = (usize, u32)> {
     let chunk_count = 4;
     let min_keysize = 2;
-    if bytes.len() > chunk_count * min_keysize {
+    if bytes.len() < chunk_count * min_keysize {
         panic!(
             "Cannot find keysize when bytes is too short: {}",
             bytes.len()
@@ -86,9 +73,8 @@ fn find_repeating_xor_keysize(bytes: &[u8]) -> impl Iterator<Item = (usize, u32)
                     lhs.hamming_distance(rhs)
                 })
                 .sum();
-            let normalized_dist = 100.0 * sum as f32 / keysize as f32;
+            let normalized_dist = 1000.0 * sum as f32 / keysize as f32;
             (keysize, normalized_dist as u32)
         })
         .sorted_by_key(|(_keysize, dist)| *dist)
-        .rev()
 }
