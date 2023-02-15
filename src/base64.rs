@@ -25,26 +25,22 @@ impl DecodeBase64 for &String {
 
 fn decode_base64(s: &str) -> Vec<u8> {
     let sextets: Vec<u8> = s.chars().map(char_to_b64_sextet).collect();
-    dbg!(&sextets);
     sextets
         .chunks(4)
-        .flat_map(|chunk| {
-            dbg!(chunk);
-            match chunk {
-                [a, b, PAD_ENCODE, PAD_ENCODE] => {
-                    vec![((a & 0b00111111) << 2) | ((b & 0b00110000) >> 4)]
-                }
-                [a, b, c, PAD_ENCODE] => vec![
-                    ((a & 0b00111111) << 2) | ((b & 0b00110000) >> 4),
-                    ((b & 0b00001111) << 4) | ((c & 0b00111100) >> 2),
-                ],
-                [a, b, c, d] => dbg!(vec![
-                    ((a & 0b00111111) << 2) | ((b & 0b00110000) >> 4),
-                    ((b & 0b00001111) << 4) | ((c & 0b00111100) >> 2),
-                    ((c & 0b00000011) << 6) | (d & 0b00111111),
-                ]),
-                _ => panic!("Unexpected chunk {:?}", chunk),
+        .flat_map(|chunk| match chunk {
+            [a, b, PAD_ENCODE, PAD_ENCODE] => {
+                vec![((a & 0b00111111) << 2) | ((b & 0b00110000) >> 4)]
             }
+            [a, b, c, PAD_ENCODE] => vec![
+                ((a & 0b00111111) << 2) | ((b & 0b00110000) >> 4),
+                ((b & 0b00001111) << 4) | ((c & 0b00111100) >> 2),
+            ],
+            [a, b, c, d] => vec![
+                ((a & 0b00111111) << 2) | ((b & 0b00110000) >> 4),
+                ((b & 0b00001111) << 4) | ((c & 0b00111100) >> 2),
+                ((c & 0b00000011) << 6) | (d & 0b00111111),
+            ],
+            _ => panic!("Unexpected chunk {:?}", chunk),
         })
         .collect()
 }
@@ -104,9 +100,9 @@ fn bin_bytes_to_b64_sextets(bytes: &[u8]) -> Vec<u8> {
 
 fn char_to_b64_sextet(ch: char) -> u8 {
     match ch {
-        'A'..='Z' => ch as u8 - 65,      // 0-25
-        'a'..='z' => ch as u8 - 97 + 26, // 26-51
-        '0'..='9' => ch as u8 - 48 + 52, // 52-61
+        'A'..='Z' => ch as u8 - b'A',      // 0-25
+        'a'..='z' => ch as u8 - b'a' + 26, // 26-51
+        '0'..='9' => ch as u8 - b'0' + 52, // 52-61
         '+' => 62,
         '/' => 63,
         '=' => PAD_ENCODE,
