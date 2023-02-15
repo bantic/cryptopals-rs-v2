@@ -1,6 +1,8 @@
-use std::{collections::HashMap, iter::zip};
+use std::{cmp::min, collections::HashMap, iter::zip};
 
-use crate::{frequency::score, hex::ToHexBytes};
+use itertools::Itertools;
+
+use crate::{frequency::score, hamming::HammingDistance, hex::ToHexBytes};
 
 pub trait Xor {
     fn xor(&self, other: &[u8]) -> Vec<u8>;
@@ -59,4 +61,34 @@ pub fn break_single_key_multilines(input: &str) -> String {
     }
 
     String::from_utf8_lossy(&best_bytes).into()
+}
+
+// fn find_repeating_xor_keysize(bytes: &[u8]) -> std::iter::Rev<std::vec::IntoIter<(usize, u32)>> {
+fn find_repeating_xor_keysize(bytes: &[u8]) -> impl Iterator<Item = (usize, u32)> {
+    let chunk_count = 4;
+    let min_keysize = 2;
+    if bytes.len() > chunk_count * min_keysize {
+        panic!(
+            "Cannot find keysize when bytes is too short: {}",
+            bytes.len()
+        );
+    }
+    let max_keysize = min(40, bytes.len() / chunk_count);
+
+    (min_keysize..=max_keysize)
+        .map(|keysize| {
+            let chunks = bytes.chunks(keysize).take(chunk_count);
+            let x = chunks.combinations(2);
+            let sum: u32 = x
+                .map(|x| {
+                    let lhs = x.get(0).unwrap();
+                    let rhs = x.get(1).unwrap();
+                    lhs.hamming_distance(rhs)
+                })
+                .sum();
+            let normalized_dist = 100.0 * sum as f32 / keysize as f32;
+            (keysize, normalized_dist as u32)
+        })
+        .sorted_by_key(|(_keysize, dist)| *dist)
+        .rev()
 }
