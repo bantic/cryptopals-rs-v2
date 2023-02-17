@@ -10,11 +10,12 @@ pub mod set1 {
     const CHALLENGE5_EXPECTED: &str= "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f";
     const CHALLENGE5_KEY: &str = "ICE";
     const CHALLENGE6_INPUT: &str = include_str!("../files/6.txt");
+    const CHALLENGE6_EXPECTED: &str = include_str!("../files/6.expected.txt");
 
     use crate::{
         base64::DecodeBase64,
         hex::{ToHexBytes, ToHexStr},
-        xor::{break_single_key, break_single_key_multilines, find_repeating_xor_keysize, Xor},
+        xor::{break_repeating_key_xor, break_single_key, break_single_key_multilines, Xor},
     };
 
     pub fn challenge2() {
@@ -51,17 +52,24 @@ pub mod set1 {
     pub fn challenge6() {
         let input: String = CHALLENGE6_INPUT.lines().map(|l| l.trim()).collect();
         let input = input.as_str().decode_base64();
+        let decoded = break_repeating_key_xor(&input);
+        println!(
+            "✅ Set 1 Challenge 6:\n{}",
+            String::from_utf8_lossy(&decoded)
+        );
     }
 
     #[cfg(test)]
     mod tests {
         use crate::{
+            base64::DecodeBase64,
             hex::{ToHexBytes, ToHexStr},
             sets::set1::{
                 CHALLENGE2_EXPECTED, CHALLENGE2_LHS, CHALLENGE2_RHS, CHALLENGE3_CIPHER,
                 CHALLENGE3_EXPECTED, CHALLENGE5_EXPECTED, CHALLENGE5_INPUT, CHALLENGE5_KEY,
+                CHALLENGE6_EXPECTED, CHALLENGE6_INPUT,
             },
-            xor::{break_single_key, break_single_key_multilines, Xor},
+            xor::{break_repeating_key_xor, break_single_key, break_single_key_multilines, Xor},
         };
 
         #[test]
@@ -93,6 +101,15 @@ pub mod set1 {
             let out = bytes.xor(key);
             let out = out.to_hex();
             assert_eq!(out, CHALLENGE5_EXPECTED);
+        }
+
+        #[test]
+        fn test_challenge6() {
+            let input: String = CHALLENGE6_INPUT.lines().map(|l| l.trim()).collect();
+            let input = input.as_str().decode_base64();
+            let decoded = break_repeating_key_xor(&input);
+            let decoded = String::from_utf8_lossy(&decoded);
+            assert_eq!(decoded, CHALLENGE6_EXPECTED);
         }
     }
 }

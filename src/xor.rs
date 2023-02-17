@@ -28,6 +28,11 @@ fn single_key_options(cipher: &[u8]) -> impl Iterator<Item = (u32, u8, Vec<u8>)>
         .sorted_by_key(|x| x.0)
 }
 
+fn break_single_key_key(cipher: &[u8]) -> u8 {
+    let (_score, key, _decoded) = single_key_options(cipher).next().unwrap();
+    key
+}
+
 pub fn break_single_key(cipher: &[u8]) -> String {
     for (_score, _key, decoded) in single_key_options(cipher) {
         // Return the first valid utf8 string from the options
@@ -77,4 +82,34 @@ pub fn find_repeating_xor_keysize(bytes: &[u8]) -> impl Iterator<Item = (usize, 
             (keysize, normalized_dist as u32)
         })
         .sorted_by_key(|(_keysize, dist)| *dist)
+}
+
+fn transpose_blocks(bytes: &[u8], block_size: usize) -> Vec<Vec<u8>> {
+    let block_count = (bytes.len() as f32 / block_size as f32).ceil() as usize;
+    let mut blocks: Vec<Vec<u8>> = Vec::with_capacity(block_count);
+    for (idx, &byte) in bytes.iter().enumerate() {
+        let block_idx = idx % block_size;
+        match blocks.get_mut(block_idx) {
+            Some(b) => {
+                b.push(byte);
+            }
+            None => {
+                let block = vec![byte];
+                blocks.push(block);
+            }
+        };
+    }
+
+    blocks
+}
+
+pub fn break_repeating_key_xor(bytes: &[u8]) -> Vec<u8> {
+    let (keysize, _score) = find_repeating_xor_keysize(bytes).next().unwrap();
+    let blocks = transpose_blocks(bytes, keysize);
+    let mut key = vec![];
+    for block in blocks {
+        let block_key = break_single_key_key(&block);
+        key.push(block_key);
+    }
+    bytes.xor(&key)
 }
