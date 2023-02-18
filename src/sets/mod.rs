@@ -14,6 +14,8 @@ pub mod set1 {
     const CHALLENGE7_INPUT: &str = include_str!("../files/7.txt");
     const CHALLENGE7_KEY: &[u8] = "YELLOW SUBMARINE".as_bytes();
     const CHALLENGE7_EXPECTED: &str = include_str!("../files/7.expected.txt");
+    const CHALLENGE8_INPUT: &str = include_str!("../files/8.txt");
+    const CHALLENGE8_EXPECTED: &str = "d880619740a8a19b7840a8a31c810a3d08649af70dc06f4fd5d2d69c744cd283e2dd052f6b641dbf9d11b0348542bb5708649af70dc06f4fd5d2d69c744cd2839475c9dfdbc1d46597949d9c7e82bf5a08649af70dc06f4fd5d2d69c744cd28397a93eab8d6aecd566489154789a6b0308649af70dc06f4fd5d2d69c744cd283d403180c98c8f6db1f2a3f9c4040deb0ab51b29933f2c123c58386b06fba186a";
 
     use crate::{
         aes, base64,
@@ -23,7 +25,7 @@ pub mod set1 {
     };
     use anyhow::Result;
 
-    pub fn challenge2() {
+    fn challenge2() {
         let out = CHALLENGE2_LHS
             .to_hex_bytes()
             .xor(&CHALLENGE2_RHS.to_hex_bytes())
@@ -32,13 +34,13 @@ pub mod set1 {
         println!("✅ Set 1 Challenge 2:\n\t{CHALLENGE2_LHS} xor {CHALLENGE2_RHS} =>\n\t{out}");
     }
 
-    pub fn challenge3() {
+    fn challenge3() {
         let bytes = CHALLENGE3_CIPHER.to_hex_bytes();
         let out = break_single_key(&bytes);
         println!("✅ Set 1 Challenge 3:\n\t{CHALLENGE3_CIPHER} break single-key xor =>\n\t{out}");
     }
 
-    pub fn challenge4() {
+    fn challenge4() {
         let input = include_str!("../files/set-1-challenge-4.txt");
         let out = break_single_key_multilines(input);
         let out = out.trim_end();
@@ -46,7 +48,7 @@ pub mod set1 {
         println!("✅ Set 1 Challenge 4:\n\t{out}");
     }
 
-    pub fn challenge5() {
+    fn challenge5() {
         let bytes = CHALLENGE5_INPUT.as_bytes();
         let key = CHALLENGE5_KEY.as_bytes();
         let out = bytes.xor(key);
@@ -54,7 +56,7 @@ pub mod set1 {
         println!("✅ Set 1 Challenge 5:\n\t{out}");
     }
 
-    pub fn challenge6() {
+    fn challenge6() {
         let input = base64::from_file_str(CHALLENGE6_INPUT);
         let decoded = break_repeating_key_xor(&input);
         println!(
@@ -63,7 +65,7 @@ pub mod set1 {
         );
     }
 
-    pub fn challenge7() -> Result<()> {
+    fn challenge7() -> Result<()> {
         let input = base64::from_file_str(CHALLENGE7_INPUT);
         let decoded = aes::decrypt_aes_ecb(&input, CHALLENGE7_KEY)?;
         println!(
@@ -73,6 +75,17 @@ pub mod set1 {
         Ok(())
     }
 
+    fn challenge8() {
+        let input = CHALLENGE8_INPUT;
+        for line in input.lines() {
+            let line = line.trim();
+            let bytes = line.to_hex_bytes();
+            if aes::detect_aes_128_ecb(&bytes) {
+                println!("{line} is aes-128-ecb");
+            }
+        }
+    }
+
     pub fn main() -> Result<()> {
         challenge2();
         challenge3();
@@ -80,6 +93,7 @@ pub mod set1 {
         challenge5();
         challenge6();
         challenge7()?;
+        challenge8();
         Ok(())
     }
 
@@ -92,7 +106,7 @@ pub mod set1 {
                 CHALLENGE2_EXPECTED, CHALLENGE2_LHS, CHALLENGE2_RHS, CHALLENGE3_CIPHER,
                 CHALLENGE3_EXPECTED, CHALLENGE5_EXPECTED, CHALLENGE5_INPUT, CHALLENGE5_KEY,
                 CHALLENGE6_EXPECTED, CHALLENGE6_INPUT, CHALLENGE7_EXPECTED, CHALLENGE7_INPUT,
-                CHALLENGE7_KEY,
+                CHALLENGE7_KEY, CHALLENGE8_EXPECTED, CHALLENGE8_INPUT,
             },
             xor::{break_repeating_key_xor, break_single_key, break_single_key_multilines, Xor},
         };
@@ -143,6 +157,22 @@ pub mod set1 {
             let decoded = String::from_utf8_lossy(&decoded);
             assert_eq!(decoded, CHALLENGE7_EXPECTED);
             Ok(())
+        }
+
+        #[test]
+
+        fn test_challenge8() {
+            let input = CHALLENGE8_INPUT;
+            let mut results = vec![];
+            for line in input.lines() {
+                let line = line.trim();
+                let bytes = line.to_hex_bytes();
+                if aes::detect_aes_128_ecb(&bytes) {
+                    results.push(line);
+                }
+            }
+            assert_eq!(results.len(), 1);
+            assert_eq!(results.first(), Some(&CHALLENGE8_EXPECTED));
         }
     }
 }
