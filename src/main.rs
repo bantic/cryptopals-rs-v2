@@ -1,9 +1,7 @@
-use cryptopals::sets::set1::*;
+use cryptopals::sets::set1;
 
 fn main() {
-    challenge2();
-    challenge3();
-    challenge4();
-    challenge5();
-    challenge6();
+    if let Err(e) = set1::main() {
+        eprintln!("Error {e}");
+    }
 }

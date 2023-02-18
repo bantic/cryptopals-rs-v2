@@ -23,6 +23,14 @@ impl DecodeBase64 for &String {
     }
 }
 
+pub fn from_file_str(str: &str) -> Vec<u8> {
+    str.lines()
+        .map(|l| l.trim())
+        .collect::<String>()
+        .as_str()
+        .decode_base64()
+}
+
 fn decode_base64(s: &str) -> Vec<u8> {
     let sextets: Vec<u8> = s.chars().map(char_to_b64_sextet).collect();
     sextets

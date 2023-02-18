@@ -11,12 +11,17 @@ pub mod set1 {
     const CHALLENGE5_KEY: &str = "ICE";
     const CHALLENGE6_INPUT: &str = include_str!("../files/6.txt");
     const CHALLENGE6_EXPECTED: &str = include_str!("../files/6.expected.txt");
+    const CHALLENGE7_INPUT: &str = include_str!("../files/7.txt");
+    const CHALLENGE7_KEY: &[u8] = "YELLOW SUBMARINE".as_bytes();
+    const CHALLENGE7_EXPECTED: &str = include_str!("../files/7.expected.txt");
 
     use crate::{
-        base64::DecodeBase64,
+        aes, base64,
         hex::{ToHexBytes, ToHexStr},
+        utils,
         xor::{break_repeating_key_xor, break_single_key, break_single_key_multilines, Xor},
     };
+    use anyhow::Result;
 
     pub fn challenge2() {
         let out = CHALLENGE2_LHS
@@ -50,24 +55,44 @@ pub mod set1 {
     }
 
     pub fn challenge6() {
-        let input: String = CHALLENGE6_INPUT.lines().map(|l| l.trim()).collect();
-        let input = input.as_str().decode_base64();
+        let input = base64::from_file_str(CHALLENGE6_INPUT);
         let decoded = break_repeating_key_xor(&input);
         println!(
             "✅ Set 1 Challenge 6:\n{}",
-            String::from_utf8_lossy(&decoded)
+            utils::truncate(String::from_utf8_lossy(&decoded).into())
         );
+    }
+
+    pub fn challenge7() -> Result<()> {
+        let input = base64::from_file_str(CHALLENGE7_INPUT);
+        let decoded = aes::decrypt_aes_ecb(&input, CHALLENGE7_KEY)?;
+        println!(
+            "✅ Set 1 Challenge 7:\n{}",
+            utils::truncate(String::from_utf8_lossy(&decoded).into())
+        );
+        Ok(())
+    }
+
+    pub fn main() -> Result<()> {
+        challenge2();
+        challenge3();
+        challenge4();
+        challenge5();
+        challenge6();
+        challenge7()?;
+        Ok(())
     }
 
     #[cfg(test)]
     mod tests {
         use crate::{
-            base64::DecodeBase64,
+            aes, base64,
             hex::{ToHexBytes, ToHexStr},
             sets::set1::{
                 CHALLENGE2_EXPECTED, CHALLENGE2_LHS, CHALLENGE2_RHS, CHALLENGE3_CIPHER,
                 CHALLENGE3_EXPECTED, CHALLENGE5_EXPECTED, CHALLENGE5_INPUT, CHALLENGE5_KEY,
-                CHALLENGE6_EXPECTED, CHALLENGE6_INPUT,
+                CHALLENGE6_EXPECTED, CHALLENGE6_INPUT, CHALLENGE7_EXPECTED, CHALLENGE7_INPUT,
+                CHALLENGE7_KEY,
             },
             xor::{break_repeating_key_xor, break_single_key, break_single_key_multilines, Xor},
         };
@@ -105,11 +130,19 @@ pub mod set1 {
 
         #[test]
         fn test_challenge6() {
-            let input: String = CHALLENGE6_INPUT.lines().map(|l| l.trim()).collect();
-            let input = input.as_str().decode_base64();
+            let input = base64::from_file_str(CHALLENGE6_INPUT);
             let decoded = break_repeating_key_xor(&input);
             let decoded = String::from_utf8_lossy(&decoded);
             assert_eq!(decoded, CHALLENGE6_EXPECTED);
+        }
+
+        #[test]
+        fn test_challenge7() -> anyhow::Result<()> {
+            let input = base64::from_file_str(CHALLENGE7_INPUT);
+            let decoded = aes::decrypt_aes_ecb(&input, CHALLENGE7_KEY)?;
+            let decoded = String::from_utf8_lossy(&decoded);
+            assert_eq!(decoded, CHALLENGE7_EXPECTED);
+            Ok(())
         }
     }
 }
