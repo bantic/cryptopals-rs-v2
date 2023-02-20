@@ -8,3 +8,9 @@ pub fn truncate(s: String) -> String {
         s
     }
 }
+
+pub mod bytes {
+    pub fn of_len(len: usize, val: u8) -> Vec<u8> {
+        vec![val; len]
+    }
+}
