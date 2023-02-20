@@ -1,7 +1,7 @@
-use cryptopals::sets::set1;
+use cryptopals::sets;
 
 fn main() {
-    if let Err(e) = set1::main() {
+    if let Err(e) = sets::main() {
         eprintln!("Error {e}");
     }
 }
