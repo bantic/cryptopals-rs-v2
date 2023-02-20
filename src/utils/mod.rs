@@ -13,4 +13,10 @@ pub mod bytes {
     pub fn of_len(len: usize, val: u8) -> Vec<u8> {
         vec![val; len]
     }
+
+    pub fn rand_of_len(len: usize) -> Vec<u8> {
+        let mut v = vec![];
+        (0..len).for_each(|_| v.push(rand::random()));
+        v
+    }
 }

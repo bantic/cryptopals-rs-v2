@@ -139,7 +139,10 @@ fn bytes_to_b64_str(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::base64::{DecodeBase64, ToBase64};
+    use crate::{
+        base64::{DecodeBase64, ToBase64},
+        utils::bytes,
+    };
 
     #[test]
     fn test_to_base64() {
@@ -159,15 +162,11 @@ mod tests {
         assert_eq!("TWE=".decode_base64(), "Ma".as_bytes());
         assert_eq!("TQ==".decode_base64(), "M".as_bytes());
 
-        fn rand_bytes(len: usize) -> Vec<u8> {
-            (0..=len).map(|_| rand::random()).collect()
-        }
-
         // generate 10 random vecs for each len and assert
         // decode(encode) is correct
         for len in 5..=10 {
             for _ in 0..=10 {
-                let bytes = rand_bytes(len);
+                let bytes = bytes::rand_of_len(len);
                 let b64 = &bytes.to_base64();
                 assert_eq!(b64.decode_base64(), bytes);
             }

@@ -25,13 +25,13 @@ fn challenge2() {
         .xor(&CHALLENGE2_RHS.decode_hex())
         .to_hex();
     assert_eq!(out, CHALLENGE2_EXPECTED);
-    println!("✅ Set 1 Challenge 2:\n\t{CHALLENGE2_LHS} xor {CHALLENGE2_RHS} =>\n\t{out}");
+    println!("✅ Challenge 2:\n\t{CHALLENGE2_LHS} xor {CHALLENGE2_RHS} =>\n\t{out}");
 }
 
 fn challenge3() {
     let bytes = CHALLENGE3_CIPHER.decode_hex();
     let out = break_single_key(&bytes);
-    println!("✅ Set 1 Challenge 3:\n\t{CHALLENGE3_CIPHER} break single-key xor =>\n\t{out}");
+    println!("✅ Challenge 3:\n\t{CHALLENGE3_CIPHER} break single-key xor =>\n\t{out}");
 }
 
 fn challenge4() {
@@ -39,7 +39,7 @@ fn challenge4() {
     let out = break_single_key_multilines(input);
     let out = out.trim_end();
 
-    println!("✅ Set 1 Challenge 4:\n\t{out}");
+    println!("✅ Challenge 4:\n\t{out}");
 }
 
 fn challenge5() {
@@ -47,14 +47,14 @@ fn challenge5() {
     let key = CHALLENGE5_KEY.as_bytes();
     let out = bytes.xor(key);
     let out = out.to_hex();
-    println!("✅ Set 1 Challenge 5:\n\t{out}");
+    println!("✅ Challenge 5:\n\t{out}");
 }
 
 fn challenge6() {
     let input = base64::from_file_str(CHALLENGE6_INPUT);
     let decoded = break_repeating_key_xor(&input);
     println!(
-        "✅ Set 1 Challenge 6:\n{}",
+        "✅ Challenge 6:\n\t{}",
         utils::truncate(String::from_utf8_lossy(&decoded).into())
     );
 }
@@ -63,7 +63,7 @@ fn challenge7() -> Result<()> {
     let input = base64::from_file_str(CHALLENGE7_INPUT);
     let decoded = aes::decrypt_aes_ecb(&input, CHALLENGE7_KEY)?;
     println!(
-        "✅ Set 1 Challenge 7:\n{}",
+        "✅ Challenge 7:\n\t{}",
         utils::truncate(String::from_utf8_lossy(&decoded).into())
     );
     Ok(())
@@ -76,12 +76,13 @@ fn challenge8() {
         let line = line.trim();
         let bytes = line.decode_hex();
         if aes::detect_aes_128_ecb(&bytes) {
-            println!("{line} is aes-128-ecb");
+            println!("\t{line} is aes-128-ecb");
         }
     }
 }
 
 pub fn main() -> Result<()> {
+    println!("\n========= Set 1 =======\n-----------------------");
     challenge2();
     challenge3();
     challenge4();
@@ -96,8 +97,8 @@ pub fn main() -> Result<()> {
 mod tests {
     const CHALLENGE5_EXPECTED: &str= "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f";
     const CHALLENGE3_EXPECTED: &str = "Cooking MC's like a pound of bacon";
-    const CHALLENGE6_EXPECTED: &str = include_str!("../files/6.expected.txt");
-    const CHALLENGE7_EXPECTED: &str = include_str!("../files/7.expected.txt");
+    const CHALLENGE6_EXPECTED: &str = include_str!("../files/funky_music_lyrics.txt");
+    const CHALLENGE7_EXPECTED: &str = include_str!("../files/funky_music_lyrics.txt");
     const CHALLENGE8_EXPECTED: &str = "d880619740a8a19b7840a8a31c810a3d08649af70dc06f4fd5d2d69c744cd283e2dd052f6b641dbf9d11b0348542bb5708649af70dc06f4fd5d2d69c744cd2839475c9dfdbc1d46597949d9c7e82bf5a08649af70dc06f4fd5d2d69c744cd28397a93eab8d6aecd566489154789a6b0308649af70dc06f4fd5d2d69c744cd283d403180c98c8f6db1f2a3f9c4040deb0ab51b29933f2c123c58386b06fba186a";
 
     use crate::{
