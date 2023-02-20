@@ -1,26 +1,24 @@
-type Byte = u8;
-
-pub trait ToHexStr {
+pub trait EncodeHex {
     fn to_hex(&self) -> String;
 }
 
-pub trait ToHexBytes {
-    fn to_hex_bytes(&self) -> Vec<u8>;
+pub trait DecodeHex {
+    fn decode_hex(&self) -> Vec<u8>;
 }
 
-impl ToHexBytes for &str {
-    fn to_hex_bytes(&self) -> Vec<u8> {
+impl DecodeHex for &str {
+    fn decode_hex(&self) -> Vec<u8> {
         from_str(self)
     }
 }
 
-impl ToHexStr for &[u8] {
+impl EncodeHex for &[u8] {
     fn to_hex(&self) -> String {
         to_str(self)
     }
 }
 
-impl ToHexStr for Vec<u8> {
+impl EncodeHex for Vec<u8> {
     fn to_hex(&self) -> String {
         to_str(self)
     }
@@ -70,29 +68,29 @@ fn to_str(bytes: &[u8]) -> String {
         .collect::<String>()
 }
 
-fn byte_to_str(b: Byte) -> [u8; 2] {
+fn byte_to_str(b: u8) -> [u8; 2] {
     [b >> 4, b & 0x0f]
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::hex::ToHexBytes;
-    use crate::hex::ToHexStr;
+    use crate::hex::DecodeHex;
+    use crate::hex::EncodeHex;
 
     #[test]
     fn test_from_str() {
-        assert_eq!("00".to_hex_bytes(), vec![0]);
-        assert_eq!("01".to_hex_bytes(), vec![1]);
-        assert_eq!("09".to_hex_bytes(), vec![9]);
-        assert_eq!("0a".to_hex_bytes(), vec![10]);
-        assert_eq!("0b".to_hex_bytes(), vec![11]);
-        assert_eq!("0f".to_hex_bytes(), vec![15]);
-        assert_eq!("10".to_hex_bytes(), vec![16]);
-        assert_eq!("1f".to_hex_bytes(), vec![31]);
-        assert_eq!("20".to_hex_bytes(), vec![32]);
+        assert_eq!("00".decode_hex(), vec![0]);
+        assert_eq!("01".decode_hex(), vec![1]);
+        assert_eq!("09".decode_hex(), vec![9]);
+        assert_eq!("0a".decode_hex(), vec![10]);
+        assert_eq!("0b".decode_hex(), vec![11]);
+        assert_eq!("0f".decode_hex(), vec![15]);
+        assert_eq!("10".decode_hex(), vec![16]);
+        assert_eq!("1f".decode_hex(), vec![31]);
+        assert_eq!("20".decode_hex(), vec![32]);
 
-        assert_eq!("2020".to_hex_bytes(), vec![32, 32]);
-        assert_eq!("200f".to_hex_bytes(), vec![32, 15]);
+        assert_eq!("2020".decode_hex(), vec![32, 32]);
+        assert_eq!("200f".decode_hex(), vec![32, 15]);
     }
 
     #[test]

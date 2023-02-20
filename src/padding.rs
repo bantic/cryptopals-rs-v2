@@ -62,20 +62,20 @@ fn unpad_pkcs7(data: &[u8]) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{hex::ToHexBytes, padding::UnpadPkcs7, utils::bytes};
+    use crate::{hex::DecodeHex, padding::UnpadPkcs7, utils::bytes};
 
     use super::PadPkcs7;
 
     #[test]
     fn test_pad() {
         assert_eq!(
-            "74657374696e67".to_hex_bytes().pad_pkcs7(),
-            "74657374696e67090909090909090909".to_hex_bytes()
+            "74657374696e67".decode_hex().pad_pkcs7(),
+            "74657374696e67090909090909090909".decode_hex()
         );
 
         assert_eq!(
-            "74657374696e6731".to_hex_bytes().pad_pkcs7(),
-            "74657374696e67310808080808080808".to_hex_bytes()
+            "74657374696e6731".decode_hex().pad_pkcs7(),
+            "74657374696e67310808080808080808".decode_hex()
         );
 
         let mut expected = "YELLOW SUBMARINE".as_bytes().to_vec();
@@ -87,16 +87,16 @@ mod tests {
     fn test_unpad() {
         assert_eq!(
             "74657374696e67090909090909090909"
-                .to_hex_bytes()
+                .decode_hex()
                 .unpad_pkcs7(),
-            "74657374696e67".to_hex_bytes()
+            "74657374696e67".decode_hex()
         );
 
         assert_eq!(
             "74657374696e67310808080808080808"
-                .to_hex_bytes()
+                .decode_hex()
                 .unpad_pkcs7(),
-            "74657374696e6731".to_hex_bytes()
+            "74657374696e6731".decode_hex()
         );
 
         let padded = "YELLOW SUBMARINE".as_bytes().pad_pkcs7();

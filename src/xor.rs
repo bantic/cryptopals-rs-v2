@@ -2,7 +2,7 @@ use std::{cmp::min, iter::zip};
 
 use itertools::Itertools;
 
-use crate::{frequency::score, hamming::HammingDistance, hex::ToHexBytes};
+use crate::{frequency::score, hamming::HammingDistance, hex::DecodeHex};
 
 pub trait Xor {
     fn xor(&self, other: &[u8]) -> Vec<u8>;
@@ -47,7 +47,7 @@ pub fn break_single_key_multilines(input: &str) -> String {
     match input
         .lines()
         .map(|l| l.trim())
-        .filter_map(|line| single_key_options(&line.to_hex_bytes()).next())
+        .filter_map(|line| single_key_options(&line.decode_hex()).next())
         .sorted_by_key(|x| x.0)
         .next()
     {

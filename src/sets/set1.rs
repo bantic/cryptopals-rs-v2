@@ -13,7 +13,7 @@ const CHALLENGE8_INPUT: &str = include_str!("../files/8.txt");
 
 use crate::{
     aes, base64,
-    hex::{ToHexBytes, ToHexStr},
+    hex::{DecodeHex, EncodeHex},
     utils,
     xor::{break_repeating_key_xor, break_single_key, break_single_key_multilines, Xor},
 };
@@ -21,15 +21,15 @@ use anyhow::Result;
 
 fn challenge2() {
     let out = CHALLENGE2_LHS
-        .to_hex_bytes()
-        .xor(&CHALLENGE2_RHS.to_hex_bytes())
+        .decode_hex()
+        .xor(&CHALLENGE2_RHS.decode_hex())
         .to_hex();
     assert_eq!(out, CHALLENGE2_EXPECTED);
     println!("✅ Set 1 Challenge 2:\n\t{CHALLENGE2_LHS} xor {CHALLENGE2_RHS} =>\n\t{out}");
 }
 
 fn challenge3() {
-    let bytes = CHALLENGE3_CIPHER.to_hex_bytes();
+    let bytes = CHALLENGE3_CIPHER.decode_hex();
     let out = break_single_key(&bytes);
     println!("✅ Set 1 Challenge 3:\n\t{CHALLENGE3_CIPHER} break single-key xor =>\n\t{out}");
 }
@@ -70,10 +70,11 @@ fn challenge7() -> Result<()> {
 }
 
 fn challenge8() {
+    println!("✅ Challenge 8: Detect AES 128 ECB");
     let input = CHALLENGE8_INPUT;
     for line in input.lines() {
         let line = line.trim();
-        let bytes = line.to_hex_bytes();
+        let bytes = line.decode_hex();
         if aes::detect_aes_128_ecb(&bytes) {
             println!("{line} is aes-128-ecb");
         }
@@ -101,7 +102,7 @@ mod tests {
 
     use crate::{
         aes, base64,
-        hex::{ToHexBytes, ToHexStr},
+        hex::{DecodeHex, EncodeHex},
         sets::set1::{
             CHALLENGE2_EXPECTED, CHALLENGE2_LHS, CHALLENGE2_RHS, CHALLENGE3_CIPHER,
             CHALLENGE5_INPUT, CHALLENGE5_KEY, CHALLENGE6_INPUT, CHALLENGE7_INPUT, CHALLENGE7_KEY,
@@ -113,15 +114,15 @@ mod tests {
     #[test]
     fn test_challenge2() {
         let out = CHALLENGE2_LHS
-            .to_hex_bytes()
-            .xor(&CHALLENGE2_RHS.to_hex_bytes())
+            .decode_hex()
+            .xor(&CHALLENGE2_RHS.decode_hex())
             .to_hex();
         assert_eq!(out, CHALLENGE2_EXPECTED);
     }
 
     #[test]
     fn test_challenge3() {
-        let out = break_single_key(&CHALLENGE3_CIPHER.to_hex_bytes());
+        let out = break_single_key(&CHALLENGE3_CIPHER.decode_hex());
         assert_eq!(out, CHALLENGE3_EXPECTED);
     }
 
@@ -165,7 +166,7 @@ mod tests {
         let mut results = vec![];
         for line in input.lines() {
             let line = line.trim();
-            let bytes = line.to_hex_bytes();
+            let bytes = line.decode_hex();
             if aes::detect_aes_128_ecb(&bytes) {
                 results.push(line);
             }
