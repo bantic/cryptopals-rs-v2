@@ -1,10 +1,14 @@
+use anyhow::ensure;
+
 use crate::{
     aes::{self, break_ecb},
-    base64, oracle,
+    base64,
+    oracle::{self, PaddingOracle},
     utils::{self, bytes},
 };
 
 const CHALLENGE10_INPUT: &str = include_str!("../files/10.txt");
+const CHALLENGE12_INPUT: &str = include_str!("../files/12.txt");
 
 fn challenge10() -> anyhow::Result<()> {
     let encrypted = base64::from_file_str(CHALLENGE10_INPUT);
@@ -30,7 +34,10 @@ fn challenge11() -> anyhow::Result<()> {
 }
 
 fn challenge12() -> anyhow::Result<()> {
-    let result = break_ecb()?;
+    let secret = base64::from_file_str(CHALLENGE12_INPUT);
+    let oracle = PaddingOracle::new(secret);
+    let result = break_ecb(&oracle)?;
+    ensure!(oracle.verify(&result));
     println!(
         "✅ Challenge 12: Break ECB using an Oracle (easy version)\n\t{}",
         utils::truncate(String::from_utf8_lossy(&result).into())
@@ -50,7 +57,9 @@ pub fn main() -> anyhow::Result<()> {
 mod tests {
     use crate::{
         aes::{self, break_ecb},
-        base64, oracle,
+        base64,
+        oracle::{self, PaddingOracle},
+        sets::set2::CHALLENGE12_INPUT,
         utils::bytes,
     };
     const CHALLENGE10_EXPECTED: &str = include_str!("../files/funky_music_lyrics.txt");
@@ -83,8 +92,11 @@ mod tests {
 
     #[test]
     fn test_challenge12() -> anyhow::Result<()> {
-        let result = break_ecb()?;
+        let secret = base64::from_file_str(CHALLENGE12_INPUT);
+        let oracle = PaddingOracle::new(secret);
+        let result = break_ecb(&oracle)?;
 
+        assert!(oracle.verify(&result));
         assert_eq!(String::from_utf8_lossy(&result), CHALLENGE12_EXPECTED);
         Ok(())
     }

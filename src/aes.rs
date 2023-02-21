@@ -11,7 +11,7 @@ pub enum Mode {
 
 use crate::{
     frequency::BYTES_BY_FREQ,
-    oracle::encrypt_ecb_with_consistent_key,
+    oracle::PaddingOracle,
     padding::{PadPkcs7, UnpadPkcs7},
     xor::Xor,
 };
@@ -103,11 +103,11 @@ fn decrypt_aes_cbc_block(bytes: &[u8], iv: &[u8], key: &[u8]) -> Result<Vec<u8>>
     Ok(decrypt_aes_ecb(&bytes, key)?.xor(iv))
 }
 
-pub fn break_ecb() -> anyhow::Result<Vec<u8>> {
-    fn detect_block_size() -> anyhow::Result<usize> {
+pub fn break_ecb(oracle: &PaddingOracle) -> anyhow::Result<Vec<u8>> {
+    fn detect_block_size(oracle: &PaddingOracle) -> anyhow::Result<usize> {
         for len in 2..=255 {
             let plaintext = vec![b'A'; len * 2];
-            let encrypted = encrypt_ecb_with_consistent_key(&plaintext)?;
+            let encrypted = oracle.encrypt(&plaintext)?;
             let mut chunks = encrypted.chunks_exact(len);
             let a = chunks.next().unwrap();
             let b = chunks.next().unwrap();
@@ -118,22 +118,22 @@ pub fn break_ecb() -> anyhow::Result<Vec<u8>> {
         bail!("Could not detect block size");
     }
 
-    fn ensure_ecb(blocksize: usize) -> anyhow::Result<()> {
+    fn ensure_ecb(blocksize: usize, oracle: &PaddingOracle) -> anyhow::Result<()> {
         let plaintext = vec![b'A'; blocksize * 3];
-        let encrypted = encrypt_ecb_with_consistent_key(&plaintext)?;
+        let encrypted = oracle.encrypt(&plaintext)?;
         ensure!(detect_aes_128_ecb(&encrypted), "expected to confirm ecb");
         Ok(())
     }
 
-    fn detect_payload_length(blocksize: usize) -> anyhow::Result<usize> {
+    fn detect_payload_length(blocksize: usize, oracle: &PaddingOracle) -> anyhow::Result<usize> {
         // The payload is pkcs7 padded, so the encrypt length will always be a multiple
         // of the blocksize.
         // Keep adding a byte at a time to the plaintext len until the ciphertext
         // jumps by blocksize -- that was the number of padding bytes added to the original plaintext
-        let curlen = encrypt_ecb_with_consistent_key(&[])?.len();
+        let curlen = oracle.encrypt(&[])?.len();
         for padlen in 1..blocksize {
             let pad = vec![b'A'; padlen];
-            let len = encrypt_ecb_with_consistent_key(&pad)?.len();
+            let len = oracle.encrypt(&pad)?.len();
             if len != curlen {
                 ensure!(len - curlen == blocksize);
                 return Ok(curlen - padlen);
@@ -142,13 +142,18 @@ pub fn break_ecb() -> anyhow::Result<Vec<u8>> {
         bail!("Did not find a length");
     }
 
-    fn detect_byte(prefix: &[u8], blocksize: usize, target: &[u8]) -> anyhow::Result<u8> {
+    fn detect_byte(
+        oracle: &PaddingOracle,
+        prefix: &[u8],
+        blocksize: usize,
+        target: &[u8],
+    ) -> anyhow::Result<u8> {
         let mut input = prefix.to_vec();
         ensure!(input.len() == blocksize - 1);
         for &probe_byte in BYTES_BY_FREQ.iter() {
             input.truncate(blocksize - 1);
             input.push(probe_byte);
-            let mut encrypted = encrypt_ecb_with_consistent_key(&input)?;
+            let mut encrypted = oracle.encrypt(&input)?;
             encrypted.truncate(blocksize);
             if encrypted == target {
                 return Ok(probe_byte);
@@ -157,7 +162,12 @@ pub fn break_ecb() -> anyhow::Result<Vec<u8>> {
         bail!("Failed to detect byte");
     }
 
-    fn decrypt_byte_idx(idx: usize, blocksize: usize, decrypted: &[u8]) -> anyhow::Result<u8> {
+    fn decrypt_byte_idx(
+        oracle: &PaddingOracle,
+        idx: usize,
+        blocksize: usize,
+        decrypted: &[u8],
+    ) -> anyhow::Result<u8> {
         // add prefix padding to align idx with the end of a known block
         ensure!(
             idx <= decrypted.len(),
@@ -183,7 +193,7 @@ pub fn break_ecb() -> anyhow::Result<Vec<u8>> {
             known_prefix
         );
 
-        let encrypted = encrypt_ecb_with_consistent_key(&pad)?;
+        let encrypted = oracle.encrypt(&pad)?;
         let target_block_start = if idx < blocksize {
             0
         } else {
@@ -191,16 +201,16 @@ pub fn break_ecb() -> anyhow::Result<Vec<u8>> {
         };
         let target_block = encrypted[target_block_start..(target_block_start + blocksize)].to_vec();
         ensure!(target_block.len() == blocksize);
-        let found_byte = detect_byte(&known_prefix, blocksize, &target_block)?;
+        let found_byte = detect_byte(oracle, &known_prefix, blocksize, &target_block)?;
         Ok(found_byte)
     }
 
-    let blocksize = detect_block_size()?;
-    ensure_ecb(blocksize)?;
-    let encrypt_len = detect_payload_length(blocksize)?;
+    let blocksize = detect_block_size(oracle)?;
+    ensure_ecb(blocksize, oracle)?;
+    let encrypt_len = detect_payload_length(blocksize, oracle)?;
     let mut decrypted = vec![];
     for byte_idx in 0..encrypt_len {
-        let byte = decrypt_byte_idx(byte_idx, blocksize, &decrypted)?;
+        let byte = decrypt_byte_idx(oracle, byte_idx, blocksize, &decrypted)?;
         decrypted.push(byte);
     }
 
