@@ -1,6 +1,6 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use anyhow::{ensure, Result};
+use anyhow::{bail, ensure, Result};
 use openssl::symm::{decrypt, encrypt, Cipher};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -10,6 +10,7 @@ pub enum Mode {
 }
 
 use crate::{
+    oracle::encrypt_ecb_with_consistent_key,
     padding::{PadPkcs7, UnpadPkcs7},
     xor::Xor,
 };
@@ -99,6 +100,112 @@ fn decrypt_aes_cbc_block(bytes: &[u8], iv: &[u8], key: &[u8]) -> Result<Vec<u8>>
     let mut bytes = bytes.to_vec();
     bytes.extend(encrypted_padding);
     Ok(decrypt_aes_ecb(&bytes, key)?.xor(iv))
+}
+
+pub fn break_ecb() -> anyhow::Result<Vec<u8>> {
+    fn detect_block_size() -> anyhow::Result<usize> {
+        for len in 2..=255 {
+            let plaintext = vec![b'A'; len * 2];
+            let encrypted = encrypt_ecb_with_consistent_key(&plaintext)?;
+            let mut chunks = encrypted.chunks_exact(len);
+            let a = chunks.next().unwrap();
+            let b = chunks.next().unwrap();
+            if a == b {
+                return Ok(len);
+            }
+        }
+        bail!("Could not detect block size");
+    }
+    fn ensure_ecb(blocksize: usize) -> anyhow::Result<()> {
+        let plaintext = vec![b'A'; blocksize * 3];
+        let encrypted = encrypt_ecb_with_consistent_key(&plaintext)?;
+        ensure!(detect_aes_128_ecb(&encrypted), "expected to confirm ecb");
+        Ok(())
+    }
+    let blocksize = detect_block_size()?;
+    ensure_ecb(blocksize)?;
+
+    fn detect_payload_length(blocksize: usize) -> anyhow::Result<usize> {
+        // The payload is pkcs7 padded, so the encrypt length will always be a multiple
+        // of the blocksize.
+        // Keep adding a byte at a time to the plaintext len until the ciphertext
+        // jumps by blocksize -- that was the number of padding bytes added to the original plaintext
+        let curlen = encrypt_ecb_with_consistent_key(&[])?.len();
+        for padlen in 1..blocksize {
+            let pad = vec![b'A'; padlen];
+            let len = encrypt_ecb_with_consistent_key(&pad)?.len();
+            if len != curlen {
+                ensure!(len - curlen == blocksize);
+                return Ok(curlen - padlen);
+            }
+        }
+        bail!("Did not find a length");
+    }
+
+    fn map_decrypt_bytes(prefix: &[u8], blocksize: usize) -> anyhow::Result<HashMap<Vec<u8>, u8>> {
+        let mut map = HashMap::new();
+        let mut input = prefix.to_vec();
+        for input_byte in 0u8..=255 {
+            input.truncate(blocksize - 1);
+            input.push(input_byte);
+            ensure!(input.len() == blocksize);
+            let mut encrypted = encrypt_ecb_with_consistent_key(&input)?;
+            encrypted.truncate(blocksize);
+            map.insert(encrypted, input_byte);
+        }
+        Ok(map)
+    }
+
+    fn decrypt_byte_idx(idx: usize, blocksize: usize, decrypted: &[u8]) -> anyhow::Result<u8> {
+        // add prefix padding to align idx with the end of a known block
+        ensure!(
+            idx <= decrypted.len(),
+            "cannot decrypt a byte at idx that we haven't seen yet {}:{}",
+            idx,
+            decrypted.len()
+        );
+        let padlen = blocksize - (idx % blocksize) - 1;
+        let pad = vec![b'A'; padlen]; // will align the result so that idx is at the end of a block
+
+        let known_prefix = if idx < blocksize {
+            let mut known = pad.to_vec();
+            known.extend(&decrypted[0..idx]);
+            known
+        } else {
+            decrypted[(idx + 1 - blocksize)..idx].to_vec()
+        };
+        ensure!(
+            known_prefix.len() == blocksize - 1,
+            "expected known prefix of len {}, got {}: {:?}",
+            blocksize - 1,
+            known_prefix.len(),
+            known_prefix
+        );
+
+        let map = map_decrypt_bytes(&known_prefix, blocksize)?;
+        let encrypted = encrypt_ecb_with_consistent_key(&pad)?;
+        let target_block_start = if idx < blocksize {
+            0
+        } else {
+            pad.len() + idx + 1 - blocksize
+        };
+        let target_block = encrypted[target_block_start..(target_block_start + blocksize)].to_vec();
+        ensure!(target_block.len() == blocksize);
+
+        let found = map.get(&target_block);
+        ensure!(found.is_some(), "expected to get something from target");
+        Ok(*found.unwrap())
+    }
+
+    let encrypt_len = detect_payload_length(blocksize)?;
+
+    let mut decrypted = vec![];
+    for byte_idx in 0..encrypt_len {
+        let byte = decrypt_byte_idx(byte_idx, blocksize, &decrypted)?;
+        decrypted.push(byte);
+    }
+
+    Ok(decrypted)
 }
 
 #[cfg(test)]

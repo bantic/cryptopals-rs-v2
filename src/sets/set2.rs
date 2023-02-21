@@ -1,5 +1,6 @@
 use crate::{
-    aes, base64, oracle,
+    aes::{self, break_ecb},
+    base64, oracle,
     utils::{self, bytes},
 };
 
@@ -28,17 +29,32 @@ fn challenge11() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn challenge12() -> anyhow::Result<()> {
+    let result = break_ecb()?;
+    println!(
+        "✅ Challenge 12: Break ECB using an Oracle (easy version)\n\t{}",
+        utils::truncate(String::from_utf8_lossy(&result).into())
+    );
+    Ok(())
+}
+
 pub fn main() -> anyhow::Result<()> {
     println!("\n========= Set 2 =======\n-----------------------");
     challenge10()?;
     challenge11()?;
+    challenge12()?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{aes, base64, oracle, utils::bytes};
+    use crate::{
+        aes::{self, break_ecb},
+        base64, oracle,
+        utils::bytes,
+    };
     const CHALLENGE10_EXPECTED: &str = include_str!("../files/funky_music_lyrics.txt");
+    const CHALLENGE12_EXPECTED: &str = include_str!("../files/rollin_lyrics.txt");
 
     use super::CHALLENGE10_INPUT;
 
@@ -62,6 +78,14 @@ mod tests {
             let guess = &oracle::guess(&oracle);
             assert!(oracle.verify(guess), "guess {:?}", guess);
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_challenge12() -> anyhow::Result<()> {
+        let result = break_ecb()?;
+
+        assert_eq!(String::from_utf8_lossy(&result), CHALLENGE12_EXPECTED);
         Ok(())
     }
 }
