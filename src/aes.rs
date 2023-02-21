@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use anyhow::{bail, ensure, Result};
 use openssl::symm::{decrypt, encrypt, Cipher};
@@ -10,6 +10,7 @@ pub enum Mode {
 }
 
 use crate::{
+    frequency::BYTES_BY_FREQ,
     oracle::encrypt_ecb_with_consistent_key,
     padding::{PadPkcs7, UnpadPkcs7},
     xor::Xor,
@@ -116,14 +117,13 @@ pub fn break_ecb() -> anyhow::Result<Vec<u8>> {
         }
         bail!("Could not detect block size");
     }
+
     fn ensure_ecb(blocksize: usize) -> anyhow::Result<()> {
         let plaintext = vec![b'A'; blocksize * 3];
         let encrypted = encrypt_ecb_with_consistent_key(&plaintext)?;
         ensure!(detect_aes_128_ecb(&encrypted), "expected to confirm ecb");
         Ok(())
     }
-    let blocksize = detect_block_size()?;
-    ensure_ecb(blocksize)?;
 
     fn detect_payload_length(blocksize: usize) -> anyhow::Result<usize> {
         // The payload is pkcs7 padded, so the encrypt length will always be a multiple
@@ -142,18 +142,19 @@ pub fn break_ecb() -> anyhow::Result<Vec<u8>> {
         bail!("Did not find a length");
     }
 
-    fn map_decrypt_bytes(prefix: &[u8], blocksize: usize) -> anyhow::Result<HashMap<Vec<u8>, u8>> {
-        let mut map = HashMap::new();
+    fn detect_byte(prefix: &[u8], blocksize: usize, target: &[u8]) -> anyhow::Result<u8> {
         let mut input = prefix.to_vec();
-        for input_byte in 0u8..=255 {
+        ensure!(input.len() == blocksize - 1);
+        for &probe_byte in BYTES_BY_FREQ.iter() {
             input.truncate(blocksize - 1);
-            input.push(input_byte);
-            ensure!(input.len() == blocksize);
+            input.push(probe_byte);
             let mut encrypted = encrypt_ecb_with_consistent_key(&input)?;
             encrypted.truncate(blocksize);
-            map.insert(encrypted, input_byte);
+            if encrypted == target {
+                return Ok(probe_byte);
+            }
         }
-        Ok(map)
+        bail!("Failed to detect byte");
     }
 
     fn decrypt_byte_idx(idx: usize, blocksize: usize, decrypted: &[u8]) -> anyhow::Result<u8> {
@@ -182,7 +183,6 @@ pub fn break_ecb() -> anyhow::Result<Vec<u8>> {
             known_prefix
         );
 
-        let map = map_decrypt_bytes(&known_prefix, blocksize)?;
         let encrypted = encrypt_ecb_with_consistent_key(&pad)?;
         let target_block_start = if idx < blocksize {
             0
@@ -191,14 +191,13 @@ pub fn break_ecb() -> anyhow::Result<Vec<u8>> {
         };
         let target_block = encrypted[target_block_start..(target_block_start + blocksize)].to_vec();
         ensure!(target_block.len() == blocksize);
-
-        let found = map.get(&target_block);
-        ensure!(found.is_some(), "expected to get something from target");
-        Ok(*found.unwrap())
+        let found_byte = detect_byte(&known_prefix, blocksize, &target_block)?;
+        Ok(found_byte)
     }
 
+    let blocksize = detect_block_size()?;
+    ensure_ecb(blocksize)?;
     let encrypt_len = detect_payload_length(blocksize)?;
-
     let mut decrypted = vec![];
     for byte_idx in 0..encrypt_len {
         let byte = decrypt_byte_idx(byte_idx, blocksize, &decrypted)?;

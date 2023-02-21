@@ -1,5 +1,6 @@
+use itertools::Itertools;
 use lazy_static::lazy_static;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(PartialEq, Eq, Hash)]
 enum FreqChar {
@@ -38,7 +39,7 @@ lazy_static! {
         m.insert('h'.into(), 0.061);
         m.insert('i'.into(), 0.07);
         m.insert('j'.into(), 0.015);
-        m.insert('k'.into(), 0.077);
+        m.insert('k'.into(), 0.0077);
         m.insert('l'.into(), 0.040);
         m.insert('m'.into(), 0.024);
         m.insert('n'.into(), 0.067);
@@ -58,6 +59,32 @@ lazy_static! {
         m.insert(FreqChar::AsciiWhitespace, 0.10);
         m.insert(FreqChar::NonAscii, 0.0);
         m
+    };
+}
+
+lazy_static! {
+    /// Ascii bytes in order for frequency.
+    /// Todo: Include capitalized letters too
+    pub static ref BYTES_BY_FREQ: Vec<u8> = {
+        let mut seen = HashSet::new();
+        let mut bytes = vec![];
+        for (fc, _pct) in CHAR_FREQUENCY
+            .iter()
+            .sorted_by_key(|&(_fc, pct)| (1000.0 * pct) as u32)
+            .rev()
+        {
+            if let FreqChar::AsciiChar(ch) = fc {
+                bytes.push(*ch as u8);
+                seen.insert(*ch as u8);
+            }
+        }
+        for byte in u8::MIN..=u8::MAX {
+            if !seen.contains(&byte) {
+                bytes.push(byte);
+                seen.insert(byte);
+            }
+        }
+        bytes
     };
 }
 
