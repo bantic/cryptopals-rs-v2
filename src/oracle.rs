@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use rand::Rng;
 
 use crate::{aes, utils::bytes};
@@ -63,5 +65,75 @@ impl PaddingOracle {
     }
     pub fn verify(&self, plaintext: &[u8]) -> bool {
         self.secret == plaintext
+    }
+}
+
+pub struct ProfileOracle {
+    key: Vec<u8>,
+}
+
+impl ProfileOracle {
+    pub fn new() -> Self {
+        Self {
+            key: bytes::rand_of_len(16),
+        }
+    }
+
+    pub fn encrypt(&self, data: &[u8]) -> anyhow::Result<Vec<u8>> {
+        let email = String::from_utf8(data.to_vec())?;
+        aes::encrypt_aes_ecb(Self::profile_for(&email).as_bytes(), &self.key)
+    }
+
+    pub fn verify(&self, ciphertext: &[u8]) -> anyhow::Result<bool> {
+        let profile = self.decrypt(ciphertext)?;
+        if let Some(v) = profile.get("role") {
+            Ok(v == "admin")
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub fn decrypt(&self, ciphertext: &[u8]) -> anyhow::Result<HashMap<String, String>> {
+        let decrypted = aes::decrypt_aes_ecb(ciphertext, &self.key)?;
+        Ok(Self::kvparse(&String::from_utf8_lossy(&decrypted)))
+    }
+
+    fn kvparse(s: &str) -> HashMap<String, String> {
+        s.split('&')
+            .map(|kv| {
+                let mut kv = kv.split('=');
+                (kv.next().unwrap().into(), kv.next().unwrap().into())
+            })
+            .collect()
+    }
+
+    fn profile_for(email: &str) -> String {
+        let email = email.replace('=', "");
+        let email = email.replace('&', "");
+        format!("email={email}&uid=10&role=user")
+    }
+}
+
+impl Default for ProfileOracle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::oracle::ProfileOracle;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_kvparse() {
+        let parsed = ProfileOracle::kvparse("foo=bar");
+        assert_eq!(parsed, HashMap::from([("foo".into(), "bar".into())]));
+
+        let parsed = ProfileOracle::kvparse("foo=bar&baz=qux");
+        assert_eq!(
+            parsed,
+            HashMap::from([("foo".into(), "bar".into()), ("baz".into(), "qux".into())])
+        );
     }
 }

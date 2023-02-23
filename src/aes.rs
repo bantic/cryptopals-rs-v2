@@ -11,7 +11,7 @@ pub enum Mode {
 
 use crate::{
     frequency::BYTES_BY_FREQ,
-    oracle::PaddingOracle,
+    oracle::{PaddingOracle, ProfileOracle},
     padding::{PadPkcs7, UnpadPkcs7},
     xor::Xor,
 };
@@ -215,6 +215,60 @@ pub fn break_ecb(oracle: &PaddingOracle) -> anyhow::Result<Vec<u8>> {
     }
 
     Ok(decrypted)
+}
+
+pub fn break_ecb_cut_paste(oracle: &ProfileOracle) -> anyhow::Result<Vec<u8>> {
+    // TODO: Make "detect_block_size" generic over oracles
+    fn detect_block_size(oracle: &ProfileOracle) -> anyhow::Result<usize> {
+        let mut data = vec![b'A'];
+        let len = oracle.encrypt(&data)?.len();
+        for padlen in 2..=255 {
+            data.resize(padlen, b'A');
+            let newlen = oracle.encrypt(&data)?.len();
+            if newlen != len {
+                return Ok(newlen - len);
+            }
+        }
+        bail!("Could not detect block size");
+    }
+
+    // TODO: make this generic over oracles
+    fn ensure_ecb(blocksize: usize, oracle: &ProfileOracle) -> anyhow::Result<()> {
+        let plaintext = vec![b'A'; blocksize * 3];
+        let encrypted = oracle.encrypt(&plaintext)?;
+        ensure!(detect_aes_128_ecb(&encrypted), "expected to confirm ecb");
+        Ok(())
+    }
+
+    let blocksize = detect_block_size(oracle)?;
+    ensure_ecb(blocksize, oracle)?;
+
+    // TODO detect alignlen assuming we don't know how much prefix padding is added
+    let alignlen = blocksize - "email=".len();
+    let mut email = vec![b'A'; alignlen];
+    email.extend("admin".as_bytes().pad_pkcs7());
+    email.extend("@a.com".as_bytes()); // to look like an email
+    let encrypted = oracle.encrypt(&email)?;
+    let target_start = "email=".len() + alignlen;
+    let target_end = target_start + blocksize;
+    let target_bytes = &encrypted[target_start..target_end];
+
+    // align email=X&uid=10&role= to end of block
+    let mut email_prefix = vec![b'A'];
+    let email_suffix = "@a.com";
+    while ("email=".len() + email_prefix.len() + email_suffix.len() + "&uid=10&role=".len())
+        % blocksize
+        != 0
+    {
+        email_prefix.push(b'A');
+    }
+    email_prefix.extend(email_suffix.as_bytes()); // make it look like an email
+    let email = email_prefix;
+    let mut encrypted = oracle.encrypt(&email)?;
+    encrypted.truncate(encrypted.len() - blocksize); // drop last block
+    encrypted.extend(target_bytes); // add back an "admin" + fake padded block
+
+    Ok(encrypted)
 }
 
 #[cfg(test)]

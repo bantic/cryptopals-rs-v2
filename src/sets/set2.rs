@@ -1,9 +1,9 @@
 use anyhow::ensure;
 
 use crate::{
-    aes::{self, break_ecb},
+    aes::{self, break_ecb, break_ecb_cut_paste},
     base64,
-    oracle::{self, PaddingOracle},
+    oracle::{self, PaddingOracle, ProfileOracle},
     utils::{self, bytes},
 };
 
@@ -45,11 +45,25 @@ fn challenge12() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn challenge13() -> anyhow::Result<()> {
+    let oracle = ProfileOracle::new();
+    let result = break_ecb_cut_paste(&oracle)?;
+
+    println!(
+        "✅ Challenge 13: Cut/Paste ECB to create fake admin profile\n\t{:?}",
+        oracle.decrypt(&result)?
+    );
+    ensure!(oracle.verify(&result)?);
+
+    Ok(())
+}
+
 pub fn main() -> anyhow::Result<()> {
     println!("\n========= Set 2 =======\n-----------------------");
     challenge10()?;
     challenge11()?;
     challenge12()?;
+    challenge13()?;
     Ok(())
 }
 
