@@ -11,7 +11,7 @@ pub enum Mode {
 
 use crate::{
     frequency::BYTES_BY_FREQ,
-    oracle::{PaddingOracle, ProfileOracle},
+    oracle::{EncryptingOracle, PaddingOracle, PrefixPaddingOracle, ProfileOracle},
     padding::{PadPkcs7, UnpadPkcs7},
     xor::Xor,
 };
@@ -103,45 +103,27 @@ fn decrypt_aes_cbc_block(bytes: &[u8], iv: &[u8], key: &[u8]) -> Result<Vec<u8>>
     Ok(decrypt_aes_ecb(&bytes, key)?.xor(iv))
 }
 
+fn detect_payload_length(
+    blocksize: usize,
+    oracle: &impl EncryptingOracle,
+) -> anyhow::Result<usize> {
+    // The payload is pkcs7 padded, so the encrypt length will always be a multiple
+    // of the blocksize.
+    // Keep adding a byte at a time to the plaintext len until the ciphertext
+    // jumps by blocksize -- that was the number of padding bytes added to the original plaintext
+    let curlen = oracle.encrypt(&[])?.len();
+    for padlen in 1..blocksize {
+        let pad = vec![b'A'; padlen];
+        let len = oracle.encrypt(&pad)?.len();
+        if len != curlen {
+            ensure!(len - curlen == blocksize);
+            return Ok(curlen - padlen);
+        }
+    }
+    bail!("Did not find a length");
+}
+
 pub fn break_ecb(oracle: &PaddingOracle) -> anyhow::Result<Vec<u8>> {
-    fn detect_block_size(oracle: &PaddingOracle) -> anyhow::Result<usize> {
-        for len in 2..=255 {
-            let plaintext = vec![b'A'; len * 2];
-            let encrypted = oracle.encrypt(&plaintext)?;
-            let mut chunks = encrypted.chunks_exact(len);
-            let a = chunks.next().unwrap();
-            let b = chunks.next().unwrap();
-            if a == b {
-                return Ok(len);
-            }
-        }
-        bail!("Could not detect block size");
-    }
-
-    fn ensure_ecb(blocksize: usize, oracle: &PaddingOracle) -> anyhow::Result<()> {
-        let plaintext = vec![b'A'; blocksize * 3];
-        let encrypted = oracle.encrypt(&plaintext)?;
-        ensure!(detect_aes_128_ecb(&encrypted), "expected to confirm ecb");
-        Ok(())
-    }
-
-    fn detect_payload_length(blocksize: usize, oracle: &PaddingOracle) -> anyhow::Result<usize> {
-        // The payload is pkcs7 padded, so the encrypt length will always be a multiple
-        // of the blocksize.
-        // Keep adding a byte at a time to the plaintext len until the ciphertext
-        // jumps by blocksize -- that was the number of padding bytes added to the original plaintext
-        let curlen = oracle.encrypt(&[])?.len();
-        for padlen in 1..blocksize {
-            let pad = vec![b'A'; padlen];
-            let len = oracle.encrypt(&pad)?.len();
-            if len != curlen {
-                ensure!(len - curlen == blocksize);
-                return Ok(curlen - padlen);
-            }
-        }
-        bail!("Did not find a length");
-    }
-
     fn detect_byte(
         oracle: &PaddingOracle,
         prefix: &[u8],
@@ -217,29 +199,39 @@ pub fn break_ecb(oracle: &PaddingOracle) -> anyhow::Result<Vec<u8>> {
     Ok(decrypted)
 }
 
-pub fn break_ecb_cut_paste(oracle: &ProfileOracle) -> anyhow::Result<Vec<u8>> {
-    // TODO: Make "detect_block_size" generic over oracles
-    fn detect_block_size(oracle: &ProfileOracle) -> anyhow::Result<usize> {
-        let mut data = vec![b'A'];
-        let len = oracle.encrypt(&data)?.len();
-        for padlen in 2..=255 {
-            data.resize(padlen, b'A');
-            let newlen = oracle.encrypt(&data)?.len();
-            if newlen != len {
-                return Ok(newlen - len);
+fn detect_block_size(oracle: &impl EncryptingOracle) -> anyhow::Result<usize> {
+    for len in 2..=255 {
+        let plaintext = vec![b'A'; len * 3];
+        let encrypted = oracle.encrypt(&plaintext)?;
+
+        for skip_blocks in 0..=10 {
+            let mut chunks = encrypted.chunks(len).skip(skip_blocks).take(2);
+            if let (Some(a), Some(b)) = (chunks.next(), chunks.next()) {
+                if a == b {
+                    return Ok(len);
+                }
             }
         }
-        bail!("Could not detect block size");
     }
+    bail!("Could not detect block size");
+}
 
-    // TODO: make this generic over oracles
-    fn ensure_ecb(blocksize: usize, oracle: &ProfileOracle) -> anyhow::Result<()> {
-        let plaintext = vec![b'A'; blocksize * 3];
-        let encrypted = oracle.encrypt(&plaintext)?;
-        ensure!(detect_aes_128_ecb(&encrypted), "expected to confirm ecb");
-        Ok(())
-    }
+fn ensure_ecb(blocksize: usize, oracle: &impl EncryptingOracle) -> anyhow::Result<()> {
+    let plaintext = vec![b'A'; blocksize * 3];
+    let encrypted = oracle.encrypt(&plaintext)?;
+    ensure!(detect_aes_128_ecb(&encrypted), "expected to confirm ecb");
+    Ok(())
+}
 
+pub fn break_prefix_padded_oracle(oracle: &PrefixPaddingOracle) -> anyhow::Result<Vec<u8>> {
+    let blocksize = detect_block_size(oracle)?;
+    dbg!(blocksize);
+    ensure_ecb(blocksize, oracle)?;
+
+    Ok(vec![])
+}
+
+pub fn break_ecb_cut_paste(oracle: &ProfileOracle) -> anyhow::Result<Vec<u8>> {
     let blocksize = detect_block_size(oracle)?;
     ensure_ecb(blocksize, oracle)?;
 

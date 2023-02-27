@@ -46,6 +46,10 @@ pub fn encrypt(plaintext: &[u8]) -> anyhow::Result<Oracle<aes::Mode>> {
     Ok(Oracle { ciphertext, mode })
 }
 
+pub trait EncryptingOracle {
+    fn encrypt(&self, padding: &[u8]) -> anyhow::Result<Vec<u8>>;
+}
+
 pub struct PaddingOracle {
     key: Vec<u8>,
     secret: Vec<u8>,
@@ -63,6 +67,56 @@ impl PaddingOracle {
         plaintext.extend(&self.secret);
         aes::encrypt_aes_ecb(&plaintext, &self.key)
     }
+    pub fn verify(&self, plaintext: &[u8]) -> bool {
+        self.secret == plaintext
+    }
+}
+
+impl EncryptingOracle for PaddingOracle {
+    fn encrypt(&self, padding: &[u8]) -> anyhow::Result<Vec<u8>> {
+        self.encrypt(padding)
+    }
+}
+
+impl EncryptingOracle for PrefixPaddingOracle {
+    fn encrypt(&self, padding: &[u8]) -> anyhow::Result<Vec<u8>> {
+        self.encrypt(padding)
+    }
+}
+
+impl EncryptingOracle for ProfileOracle {
+    fn encrypt(&self, padding: &[u8]) -> anyhow::Result<Vec<u8>> {
+        self.encrypt(padding)
+    }
+}
+
+pub struct PrefixPaddingOracle {
+    key: Vec<u8>,
+    prefix: Vec<u8>,
+    secret: Vec<u8>,
+}
+
+impl PrefixPaddingOracle {
+    pub fn new(secret: Vec<u8>) -> Self {
+        let blocksize = 16;
+        let key = bytes::rand_of_len(blocksize);
+        let mut rng = rand::thread_rng();
+        let prefix_len = rng.gen_range(5..=40);
+        let prefix = bytes::rand_of_len(prefix_len);
+        PrefixPaddingOracle {
+            key,
+            prefix,
+            secret,
+        }
+    }
+    pub fn encrypt(&self, bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
+        let mut plaintext = vec![];
+        plaintext.extend(&self.prefix);
+        plaintext.extend(bytes);
+        plaintext.extend(&self.secret);
+        aes::encrypt_aes_ecb(&plaintext, &self.key)
+    }
+
     pub fn verify(&self, plaintext: &[u8]) -> bool {
         self.secret == plaintext
     }

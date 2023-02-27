@@ -1,9 +1,9 @@
 use anyhow::ensure;
 
 use crate::{
-    aes::{self, break_ecb, break_ecb_cut_paste},
+    aes::{self, break_ecb, break_ecb_cut_paste, break_prefix_padded_oracle},
     base64,
-    oracle::{self, PaddingOracle, ProfileOracle},
+    oracle::{self, PaddingOracle, PrefixPaddingOracle, ProfileOracle},
     utils::{self, bytes},
 };
 
@@ -58,12 +58,20 @@ fn challenge13() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn challenge14() -> anyhow::Result<()> {
+    let secret = base64::from_file_str(CHALLENGE12_INPUT);
+    let oracle = PrefixPaddingOracle::new(secret);
+    break_prefix_padded_oracle(&oracle)?;
+    Ok(())
+}
+
 pub fn main() -> anyhow::Result<()> {
     println!("\n========= Set 2 =======\n-----------------------");
     challenge10()?;
     challenge11()?;
     challenge12()?;
     challenge13()?;
+    challenge14()?;
     Ok(())
 }
 
