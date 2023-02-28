@@ -12,7 +12,7 @@ pub enum Mode {
 
 use crate::{
     frequency::BYTES_BY_FREQ,
-    oracle::{EncryptingOracle, ProfileOracle},
+    oracle::{CbcOracle, EncryptingOracle, ProfileOracle},
     padding::{PadPkcs7, UnpadPkcs7},
     utils::bytes,
     xor::Xor,
@@ -270,6 +270,23 @@ pub fn break_ecb_cut_paste(oracle: &ProfileOracle) -> anyhow::Result<Vec<u8>> {
     encrypted.extend(target_bytes); // add back an "admin" + fake padded block
 
     Ok(encrypted)
+}
+
+pub fn break_cbc_bitflip(oracle: &CbcOracle) -> anyhow::Result<Vec<u8>> {
+    let blocksize = 16;
+    let plaintext = vec![b'A'; blocksize * 2];
+    let encrypted = oracle.encrypt(&plaintext)?;
+    let mut patched = vec![];
+    for (idx, block) in encrypted.chunks(blocksize).enumerate() {
+        if idx == 2 {
+            let data = ";admin=true;".as_bytes().to_vec();
+            let patch = data.xor(&vec![b'A'; blocksize]);
+            patched.extend(block.xor(&patch));
+        } else {
+            patched.extend(block);
+        }
+    }
+    Ok(patched)
 }
 
 #[cfg(test)]

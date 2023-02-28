@@ -1,9 +1,9 @@
 use anyhow::ensure;
 
 use crate::{
-    aes::{self, break_ecb, break_ecb_cut_paste},
+    aes::{self, break_cbc_bitflip, break_ecb, break_ecb_cut_paste},
     base64,
-    oracle::{self, PaddingOracle, PrefixPaddingOracle, ProfileOracle},
+    oracle::{self, CbcOracle, PaddingOracle, PrefixPaddingOracle, ProfileOracle},
     padding::UnpadPkcs7,
     utils::{self, bytes},
 };
@@ -94,6 +94,14 @@ fn challenge15() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn challenge16() -> anyhow::Result<()> {
+    let oracle = CbcOracle::new();
+    let result = break_cbc_bitflip(&oracle)?;
+    ensure!(oracle.verify(&result)?);
+    println!("✅ Challenge 16: Break CBC by bitflipping");
+    Ok(())
+}
+
 pub fn main() -> anyhow::Result<()> {
     println!("\n========= Set 2 =======\n-----------------------");
     challenge10()?;
@@ -102,15 +110,16 @@ pub fn main() -> anyhow::Result<()> {
     challenge13()?;
     challenge14()?;
     challenge15()?;
+    challenge16()?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        aes::{self, break_ecb, break_ecb_cut_paste},
+        aes::{self, break_cbc_bitflip, break_ecb, break_ecb_cut_paste},
         base64,
-        oracle::{self, PaddingOracle, PrefixPaddingOracle, ProfileOracle},
+        oracle::{self, CbcOracle, PaddingOracle, PrefixPaddingOracle, ProfileOracle},
         sets::set2::CHALLENGE12_INPUT,
         utils::bytes,
     };
@@ -173,6 +182,16 @@ mod tests {
             let result = break_ecb(&oracle)?;
             assert_eq!(String::from_utf8_lossy(&result), CHALLENGE12_EXPECTED);
             assert!(oracle.verify(&result));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_challenge16() -> anyhow::Result<()> {
+        for _ in 0..100 {
+            let oracle = CbcOracle::new();
+            let result = break_cbc_bitflip(&oracle)?;
+            assert!(oracle.verify(&result)?);
         }
         Ok(())
     }

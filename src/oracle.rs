@@ -183,6 +183,60 @@ impl Default for ProfileOracle {
     }
 }
 
+pub struct CbcOracle {
+    key: Vec<u8>,
+    iv: Vec<u8>,
+    prefix: String,
+    suffix: String,
+    target: String,
+}
+
+impl CbcOracle {
+    pub fn new() -> Self {
+        CbcOracle {
+            key: bytes::rand_of_len(16),
+            iv: bytes::rand_of_len(16),
+            prefix: "comment1=cooking%20MCs;userdata=".into(),
+            suffix: ";comment2=%20like%20a%20pound%20of%20bacon".into(),
+            target: ";admin=true;".into(),
+        }
+    }
+
+    pub fn encrypt(&self, data: &[u8]) -> anyhow::Result<Vec<u8>> {
+        let mut bytes = vec![];
+        let data = String::from_utf8_lossy(data);
+        let data = data.replace(';', "%3B");
+        let data = data.replace('=', "%3D");
+        bytes.extend(self.prefix.as_bytes());
+        bytes.extend(data.as_bytes());
+        bytes.extend(self.suffix.as_bytes());
+
+        aes::encrypt_aes_cbc(&bytes, &self.iv, &self.key)
+    }
+
+    fn decrypt(&self, ciphertext: &[u8]) -> anyhow::Result<Vec<u8>> {
+        aes::decrypt_aes_cbc(ciphertext, &self.iv, &self.key)
+    }
+
+    pub fn verify(&self, ciphertext: &[u8]) -> anyhow::Result<bool> {
+        let result = self.decrypt(ciphertext)?;
+        dbg!(String::from_utf8_lossy(&result));
+        Ok(String::from_utf8_lossy(&result).contains(&self.target))
+    }
+}
+
+impl Default for CbcOracle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl EncryptingOracle for CbcOracle {
+    fn encrypt(&self, padding: &[u8]) -> anyhow::Result<Vec<u8>> {
+        self.encrypt(padding)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::oracle::ProfileOracle;
