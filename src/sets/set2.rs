@@ -165,10 +165,13 @@ mod tests {
 
     #[test]
     fn test_challenge14() -> anyhow::Result<()> {
+        // This fails about every now and again.
+        // If the loop count is increased to 1000 it fails basically every time
         for _ in 0..100 {
             let secret = base64::from_file_str(CHALLENGE12_INPUT);
             let oracle = PrefixPaddingOracle::new(secret);
             let result = break_ecb(&oracle)?;
+            assert_eq!(String::from_utf8_lossy(&result), CHALLENGE12_EXPECTED);
             assert!(oracle.verify(&result));
         }
         Ok(())
