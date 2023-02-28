@@ -90,9 +90,10 @@ impl EncryptingOracle for ProfileOracle {
     }
 }
 
+#[derive(Debug)]
 pub struct PrefixPaddingOracle {
     key: Vec<u8>,
-    prefix: Vec<u8>,
+    pub prefix: Vec<u8>,
     secret: Vec<u8>,
 }
 
@@ -119,6 +120,14 @@ impl PrefixPaddingOracle {
 
     pub fn verify(&self, plaintext: &[u8]) -> bool {
         self.secret == plaintext
+    }
+
+    pub fn verify_prefixlen(&self, len: usize) -> bool {
+        dbg!(self.prefix.len() == len)
+    }
+
+    pub fn verify_payload_len(&self, len: usize) -> bool {
+        dbg!(self.secret.len() == len)
     }
 }
 
