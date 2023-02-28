@@ -1,7 +1,7 @@
 use anyhow::ensure;
 
 use crate::{
-    aes::{self, break_ecb, break_ecb_cut_paste, break_prefix_padded_oracle},
+    aes::{self, break_ecb, break_ecb_cut_paste},
     base64,
     oracle::{self, PaddingOracle, PrefixPaddingOracle, ProfileOracle},
     utils::{self, bytes},
@@ -61,7 +61,7 @@ fn challenge13() -> anyhow::Result<()> {
 fn challenge14() -> anyhow::Result<()> {
     let secret = base64::from_file_str(CHALLENGE12_INPUT);
     let oracle = PrefixPaddingOracle::new(secret);
-    let result = break_prefix_padded_oracle(&oracle)?;
+    let result = break_ecb(&oracle)?;
     ensure!(oracle.verify(&result));
     println!(
         "✅ Challenge 14: Break Prefix-Padded ECB (hard version)\n\t{}",
@@ -83,7 +83,7 @@ pub fn main() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        aes::{self, break_ecb, break_ecb_cut_paste, break_prefix_padded_oracle},
+        aes::{self, break_ecb, break_ecb_cut_paste},
         base64,
         oracle::{self, PaddingOracle, PrefixPaddingOracle, ProfileOracle},
         sets::set2::CHALLENGE12_INPUT,
@@ -119,18 +119,18 @@ mod tests {
 
     #[test]
     fn test_challenge12() -> anyhow::Result<()> {
-        let secret = base64::from_file_str(CHALLENGE12_INPUT);
-        let oracle = PaddingOracle::new(secret);
-        let result = break_ecb(&oracle)?;
-
-        assert!(oracle.verify(&result));
-        assert_eq!(String::from_utf8_lossy(&result), CHALLENGE12_EXPECTED);
+        for _ in 0..100 {
+            let secret = base64::from_file_str(CHALLENGE12_INPUT);
+            let oracle = PaddingOracle::new(secret);
+            let result = break_ecb(&oracle)?;
+            assert!(oracle.verify(&result));
+        }
         Ok(())
     }
 
     #[test]
     fn test_challenge13() -> anyhow::Result<()> {
-        for _ in 0..25 {
+        for _ in 0..100 {
             let oracle = ProfileOracle::new();
             let result = break_ecb_cut_paste(&oracle)?;
             assert!(oracle.verify(&result)?);
@@ -140,13 +140,11 @@ mod tests {
 
     #[test]
     fn test_challenge14() -> anyhow::Result<()> {
-        for _ in 0..25 {
+        for _ in 0..100 {
             let secret = base64::from_file_str(CHALLENGE12_INPUT);
             let oracle = PrefixPaddingOracle::new(secret);
-            let result = break_prefix_padded_oracle(&oracle)?;
-
+            let result = break_ecb(&oracle)?;
             assert!(oracle.verify(&result));
-            assert_eq!(String::from_utf8_lossy(&result), CHALLENGE12_EXPECTED);
         }
         Ok(())
     }

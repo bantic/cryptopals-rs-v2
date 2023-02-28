@@ -12,7 +12,7 @@ pub enum Mode {
 
 use crate::{
     frequency::BYTES_BY_FREQ,
-    oracle::{EncryptingOracle, PaddingOracle, PrefixPaddingOracle, ProfileOracle},
+    oracle::{EncryptingOracle, ProfileOracle},
     padding::{PadPkcs7, UnpadPkcs7},
     utils::bytes,
     xor::Xor,
@@ -105,96 +105,14 @@ fn decrypt_aes_cbc_block(bytes: &[u8], iv: &[u8], key: &[u8]) -> Result<Vec<u8>>
     Ok(decrypt_aes_ecb(&bytes, key)?.xor(iv))
 }
 
-fn detect_payload_length(
-    blocksize: usize,
-    oracle: &impl EncryptingOracle,
-) -> anyhow::Result<usize> {
-    // The payload is pkcs7 padded, so the encrypt length will always be a multiple
-    // of the blocksize.
-    // Keep adding a byte at a time to the plaintext len until the ciphertext
-    // jumps by blocksize -- that was the number of padding bytes added to the original plaintext
-    let curlen = oracle.encrypt(&[])?.len();
-    for padlen in 1..blocksize {
-        let pad = vec![b'A'; padlen];
-        let len = oracle.encrypt(&pad)?.len();
-        if len != curlen {
-            ensure!(len - curlen == blocksize);
-            return Ok(curlen - padlen);
-        }
-    }
-    bail!("Did not find a length");
-}
-
-pub fn break_ecb(oracle: &PaddingOracle) -> anyhow::Result<Vec<u8>> {
-    fn detect_byte(
-        oracle: &PaddingOracle,
-        prefix: &[u8],
-        blocksize: usize,
-        target: &[u8],
-    ) -> anyhow::Result<u8> {
-        let mut input = prefix.to_vec();
-        ensure!(input.len() == blocksize - 1);
-        for &probe_byte in BYTES_BY_FREQ.iter() {
-            input.truncate(blocksize - 1);
-            input.push(probe_byte);
-            let mut encrypted = oracle.encrypt(&input)?;
-            encrypted.truncate(blocksize);
-            if encrypted == target {
-                return Ok(probe_byte);
-            }
-        }
-        bail!("Failed to detect byte");
-    }
-
-    fn decrypt_byte_idx(
-        oracle: &PaddingOracle,
-        idx: usize,
-        blocksize: usize,
-        decrypted: &[u8],
-    ) -> anyhow::Result<u8> {
-        // add prefix padding to align idx with the end of a known block
-        ensure!(
-            idx <= decrypted.len(),
-            "cannot decrypt a byte at idx that we haven't seen yet {}:{}",
-            idx,
-            decrypted.len()
-        );
-        let padlen = blocksize - (idx % blocksize) - 1;
-        let pad = vec![b'A'; padlen]; // will align the result so that idx is at the end of a block
-
-        let known_prefix = if idx < blocksize {
-            let mut known = pad.to_vec();
-            known.extend(&decrypted[0..idx]);
-            known
-        } else {
-            decrypted[(idx + 1 - blocksize)..idx].to_vec()
-        };
-        ensure!(
-            known_prefix.len() == blocksize - 1,
-            "expected known prefix of len {}, got {}: {:?}",
-            blocksize - 1,
-            known_prefix.len(),
-            known_prefix
-        );
-
-        let encrypted = oracle.encrypt(&pad)?;
-        let target_block_start = if idx < blocksize {
-            0
-        } else {
-            pad.len() + idx + 1 - blocksize
-        };
-        let target_block = encrypted[target_block_start..(target_block_start + blocksize)].to_vec();
-        ensure!(target_block.len() == blocksize);
-        let found_byte = detect_byte(oracle, &known_prefix, blocksize, &target_block)?;
-        Ok(found_byte)
-    }
-
+pub fn break_ecb(oracle: &impl EncryptingOracle) -> anyhow::Result<Vec<u8>> {
     let blocksize = detect_block_size(oracle)?;
     ensure_ecb(blocksize, oracle)?;
-    let encrypt_len = detect_payload_length(blocksize, oracle)?;
+    let alignment = detect_alignment(blocksize, oracle)?;
+    let encrypt_len = detect_payload_length(blocksize, &alignment, oracle)?;
     let mut decrypted = vec![];
-    for byte_idx in 0..encrypt_len {
-        let byte = decrypt_byte_idx(oracle, byte_idx, blocksize, &decrypted)?;
+    for _ in 0..encrypt_len {
+        let byte = decrypt_next_byte(&alignment, blocksize, &decrypted, oracle)?;
         decrypted.push(byte);
     }
 
@@ -222,132 +140,104 @@ fn ensure_ecb(blocksize: usize, oracle: &impl EncryptingOracle) -> anyhow::Resul
     Ok(())
 }
 
-pub fn break_prefix_padded_oracle(oracle: &PrefixPaddingOracle) -> anyhow::Result<Vec<u8>> {
-    let blocksize = detect_block_size(oracle)?;
-    ensure!(blocksize == 16);
-    dbg!(blocksize == 16);
-    ensure_ecb(blocksize, oracle)?;
+fn detect_payload_length(
+    blocksize: usize,
+    alignment: &Alignment,
+    oracle: &impl EncryptingOracle,
+) -> anyhow::Result<usize> {
+    // The payload is pkcs7 padded, so the encrypt length will always be a multiple
+    // of the blocksize.
+    // Keep adding a byte at a time to the plaintext len until the ciphertext
+    // jumps by blocksize -- that was the number of padding bytes added to the original plaintext
+    let prefix = vec![b'A'; alignment.len];
+    let curlen = oracle.encrypt(&prefix)?.len();
 
-    #[derive(Debug)]
-    struct Alignment {
-        len: usize,
-        block_idx: usize,
+    let mut bytes = prefix;
+    for padlen in 0..blocksize {
+        bytes.truncate(alignment.len);
+        bytes.extend(vec![b'A'; padlen]);
+        let len = oracle.encrypt(&bytes)?.len();
+        if len != curlen {
+            let payload_len = curlen - padlen - alignment.block_idx * blocksize;
+            return Ok(payload_len);
+        }
+    }
+    bail!("Did not find a length");
+}
+
+fn decrypt_next_byte(
+    alignment: &Alignment,
+    blocksize: usize,
+    decrypted: &[u8],
+    oracle: &impl EncryptingOracle,
+) -> anyhow::Result<u8> {
+    let mut prefix = vec![];
+    while (prefix.len() + decrypted.len()) % blocksize != (blocksize - 1) {
+        prefix.push(b'A');
+    }
+    let mut plaintext = vec![];
+    plaintext.extend(&prefix);
+    plaintext.extend(decrypted);
+
+    ensure!(plaintext.len() >= (blocksize - 1));
+    ensure!(plaintext.len() % blocksize == (blocksize - 1));
+    let mut probe_prefix = plaintext[plaintext.len() - (blocksize - 1)..].to_vec();
+
+    for &probe_byte in BYTES_BY_FREQ.iter() {
+        probe_prefix.truncate(blocksize - 1);
+        probe_prefix.push(probe_byte);
+        let probe = &probe_prefix;
+
+        ensure!(probe.len() == blocksize);
+
+        let mut bytes = vec![];
+        bytes.extend(vec![b'0'; alignment.len]);
+        bytes.extend(probe);
+        bytes.extend(&plaintext);
+        bytes.truncate(bytes.len() - decrypted.len());
+
+        let probe_block_idx = alignment.block_idx;
+        let target_block_idx = probe_block_idx + ((1 + plaintext.len()) / blocksize);
+        let encrypted = oracle.encrypt(&bytes)?;
+
+        let probe_block = encrypted.chunks(blocksize).nth(probe_block_idx).unwrap();
+        let target_block = encrypted.chunks(blocksize).nth(target_block_idx).unwrap();
+
+        if probe_block == target_block {
+            return Ok(probe_byte);
+        }
     }
 
-    fn detect_alignment(
-        blocksize: usize,
-        oracle: &impl EncryptingOracle,
-    ) -> anyhow::Result<Alignment> {
-        let plaintext_block = bytes::rand_of_len(blocksize);
-        for len in 0..blocksize {
-            let align_bytes = bytes::rand_of_len(len);
-            let mut bytes = vec![];
-            bytes.extend(&align_bytes);
-            bytes.extend(&plaintext_block);
-            bytes.extend(&plaintext_block);
+    bail!("failed to decrypt a byte");
+}
 
-            let encrypted = oracle.encrypt(&bytes)?;
-            for (block_idx, (a, b)) in encrypted
-                .chunks(blocksize)
-                .tuple_windows::<(_, _)>()
-                .enumerate()
-            {
-                if a == b {
-                    return Ok(Alignment { len, block_idx });
-                }
+#[derive(Debug, Default)]
+struct Alignment {
+    len: usize,
+    block_idx: usize,
+}
+
+fn detect_alignment(blocksize: usize, oracle: &impl EncryptingOracle) -> anyhow::Result<Alignment> {
+    let plaintext_block = bytes::rand_of_len(blocksize);
+    for len in 0..blocksize {
+        let align_bytes = bytes::rand_of_len(len);
+        let mut bytes = vec![];
+        bytes.extend(&align_bytes);
+        bytes.extend(&plaintext_block);
+        bytes.extend(&plaintext_block);
+
+        let encrypted = oracle.encrypt(&bytes)?;
+        for (block_idx, (a, b)) in encrypted
+            .chunks(blocksize)
+            .tuple_windows::<(_, _)>()
+            .enumerate()
+        {
+            if a == b {
+                return Ok(Alignment { len, block_idx });
             }
         }
-        bail!("Could not detect prefix len");
     }
-
-    fn decrypt_next_byte(
-        alignment: &Alignment,
-        blocksize: usize,
-        decrypted: &[u8],
-        oracle: &impl EncryptingOracle,
-    ) -> anyhow::Result<u8> {
-        let mut prefix = vec![];
-        while (prefix.len() + decrypted.len()) % blocksize != (blocksize - 1) {
-            prefix.push(b'A');
-        }
-        let mut plaintext = vec![];
-        plaintext.extend(&prefix);
-        plaintext.extend(decrypted);
-
-        ensure!(plaintext.len() >= (blocksize - 1));
-        ensure!(plaintext.len() % blocksize == (blocksize - 1));
-        let mut probe_prefix = plaintext[plaintext.len() - (blocksize - 1)..].to_vec();
-
-        for probe_byte in u8::MIN..=u8::MAX {
-            probe_prefix.truncate(blocksize - 1);
-            probe_prefix.push(probe_byte);
-            let probe = &probe_prefix;
-
-            ensure!(probe.len() == blocksize);
-
-            let mut bytes = vec![];
-            bytes.extend(vec![b'0'; alignment.len]);
-            bytes.extend(probe);
-            bytes.extend(&plaintext);
-            bytes.truncate(bytes.len() - decrypted.len());
-
-            let probe_block_idx = alignment.block_idx;
-            let target_block_idx = probe_block_idx + ((1 + plaintext.len()) / blocksize);
-            let encrypted = oracle.encrypt(&bytes)?;
-
-            let probe_block = encrypted.chunks(blocksize).nth(probe_block_idx).unwrap();
-            let target_block = encrypted.chunks(blocksize).nth(target_block_idx).unwrap();
-
-            if probe_block == target_block {
-                return Ok(probe_byte);
-            }
-        }
-
-        bail!("failed to decrypt a byte");
-    }
-
-    fn detect_payload_length(
-        blocksize: usize,
-        alignment: &Alignment,
-        oracle: &PrefixPaddingOracle,
-    ) -> anyhow::Result<usize> {
-        // The payload is pkcs7 padded, so the encrypt length will always be a multiple
-        // of the blocksize.
-        // Keep adding a byte at a time to the plaintext len until the ciphertext
-        // jumps by blocksize -- that was the number of padding bytes added to the original plaintext
-        let prefix = vec![b'A'; alignment.len];
-        let curlen = oracle.encrypt(&prefix)?.len();
-
-        let mut bytes = prefix;
-        for padlen in 0..blocksize {
-            bytes.truncate(alignment.len);
-            bytes.extend(vec![b'A'; padlen]);
-            let len = oracle.encrypt(&bytes)?.len();
-            if len != curlen {
-                let payload_len = curlen - padlen - alignment.block_idx * blocksize;
-                dbg!((
-                    curlen,
-                    padlen,
-                    payload_len,
-                    alignment.len,
-                    alignment.block_idx
-                ));
-                ensure!(oracle.verify_payload_len(payload_len));
-                return Ok(payload_len);
-            }
-        }
-        bail!("Did not find a length");
-    }
-
-    let alignment = detect_alignment(blocksize, oracle)?;
-
-    let mut decrypted = vec![];
-    for _ in 0..detect_payload_length(blocksize, &alignment, oracle)? {
-        let byte = decrypt_next_byte(&alignment, blocksize, &decrypted, oracle)?;
-        decrypted.push(byte);
-    }
-
-    Ok(decrypted)
+    bail!("Could not detect prefix len");
 }
 
 pub fn break_ecb_cut_paste(oracle: &ProfileOracle) -> anyhow::Result<Vec<u8>> {
