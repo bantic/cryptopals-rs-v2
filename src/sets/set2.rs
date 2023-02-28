@@ -4,6 +4,7 @@ use crate::{
     aes::{self, break_ecb, break_ecb_cut_paste},
     base64,
     oracle::{self, PaddingOracle, PrefixPaddingOracle, ProfileOracle},
+    padding::UnpadPkcs7,
     utils::{self, bytes},
 };
 
@@ -70,6 +71,29 @@ fn challenge14() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn challenge15() -> anyhow::Result<()> {
+    ensure!("ICE ICE BABY\x04\x04\x04\x04"
+        .as_bytes()
+        .validate_unpad_pkcs7()
+        .is_ok());
+    ensure!("ICE ICE BABY\x04\x04\x04"
+        .as_bytes()
+        .validate_unpad_pkcs7()
+        .is_err());
+    ensure!("ICE ICE BABY\x05\x05\x05\x05"
+        .as_bytes()
+        .validate_unpad_pkcs7()
+        .is_err());
+    ensure!("ICE ICE BABY\x01\x02\x03\x04"
+        .as_bytes()
+        .validate_unpad_pkcs7()
+        .is_err());
+
+    println!("✅ Challenge 15: Detect Valid PKCS#7 Padding");
+
+    Ok(())
+}
+
 pub fn main() -> anyhow::Result<()> {
     println!("\n========= Set 2 =======\n-----------------------");
     challenge10()?;
@@ -77,6 +101,7 @@ pub fn main() -> anyhow::Result<()> {
     challenge12()?;
     challenge13()?;
     challenge14()?;
+    challenge15()?;
     Ok(())
 }
 

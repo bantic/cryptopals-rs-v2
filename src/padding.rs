@@ -1,3 +1,5 @@
+use anyhow::ensure;
+
 use crate::utils::bytes;
 
 pub trait PadPkcs7 {
@@ -6,6 +8,7 @@ pub trait PadPkcs7 {
 
 pub trait UnpadPkcs7 {
     fn unpad_pkcs7(&self) -> Vec<u8>;
+    fn validate_unpad_pkcs7(&self) -> anyhow::Result<Vec<u8>>;
 }
 
 impl PadPkcs7 for &[u8] {
@@ -33,12 +36,41 @@ impl UnpadPkcs7 for &[u8] {
     fn unpad_pkcs7(&self) -> Vec<u8> {
         unpad_pkcs7(self)
     }
+
+    fn validate_unpad_pkcs7(&self) -> anyhow::Result<Vec<u8>> {
+        validate_unpad_pkcs7(self)
+    }
 }
 
 impl UnpadPkcs7 for Vec<u8> {
     fn unpad_pkcs7(&self) -> Vec<u8> {
         unpad_pkcs7(self)
     }
+
+    fn validate_unpad_pkcs7(&self) -> anyhow::Result<Vec<u8>> {
+        validate_unpad_pkcs7(self)
+    }
+}
+
+fn validate_unpad_pkcs7(data: &[u8]) -> anyhow::Result<Vec<u8>> {
+    let blocksize = 16;
+    ensure!(data.len() > 0);
+    ensure!(data.len() % blocksize == 0);
+
+    let last_byte = data[data.len() - 1];
+    ensure!(last_byte <= blocksize as u8);
+    ensure!(last_byte > 0);
+
+    let expected = vec![last_byte; last_byte as usize];
+    let ending = data
+        .iter()
+        .rev()
+        .take(last_byte as usize)
+        .copied()
+        .collect::<Vec<_>>();
+    ensure!(ending == expected);
+
+    Ok(unpad_pkcs7(data))
 }
 
 fn unpad_pkcs7(data: &[u8]) -> Vec<u8> {
@@ -101,5 +133,38 @@ mod tests {
 
         let padded = "YELLOW SUBMARINE".as_bytes().pad_pkcs7();
         assert_eq!(padded.unpad_pkcs7(), "YELLOW SUBMARINE".as_bytes());
+    }
+
+    #[test]
+    fn test_validate_unpad() {
+        assert!("ICE ICE BABY\x04\x04\x04\x04"
+            .as_bytes()
+            .validate_unpad_pkcs7()
+            .is_ok());
+        assert!("ICE ICE BABY\x04\x04\x04"
+            .as_bytes()
+            .validate_unpad_pkcs7()
+            .is_err());
+        assert!("ICE ICE BABY\x05\x05\x05\x05"
+            .as_bytes()
+            .validate_unpad_pkcs7()
+            .is_err());
+        assert!("ICE ICE BABY\x01\x02\x03\x04"
+            .as_bytes()
+            .validate_unpad_pkcs7()
+            .is_err());
+        assert!(vec![16; 16].validate_unpad_pkcs7().is_ok());
+
+        // too short
+        assert!(vec![0; 0].validate_unpad_pkcs7().is_err());
+
+        // 0 is not a valid pkcs7 padding byte
+        assert!(vec![0; 16].validate_unpad_pkcs7().is_err());
+
+        for byte in 1..=16 {
+            // this is ok -- it's (blocksize-byte) data bytes (all same value)
+            // + (byte) number of padding bytes (all of which are the same value)
+            assert!(vec![byte; 16].validate_unpad_pkcs7().is_ok());
+        }
     }
 }
