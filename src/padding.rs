@@ -1,6 +1,5 @@
-use anyhow::ensure;
-
-use crate::utils::bytes;
+use crate::{aes::AesError, utils::bytes};
+use anyhow::{ensure, Result};
 
 pub trait PadPkcs7 {
     fn pad_pkcs7(&self) -> Vec<u8>;
@@ -8,7 +7,7 @@ pub trait PadPkcs7 {
 
 pub trait UnpadPkcs7 {
     fn unpad_pkcs7(&self) -> Vec<u8>;
-    fn validate_unpad_pkcs7(&self) -> anyhow::Result<Vec<u8>>;
+    fn validate_unpad_pkcs7(&self) -> Result<Vec<u8>>;
 }
 
 impl PadPkcs7 for &[u8] {
@@ -37,7 +36,7 @@ impl UnpadPkcs7 for &[u8] {
         unpad_pkcs7(self)
     }
 
-    fn validate_unpad_pkcs7(&self) -> anyhow::Result<Vec<u8>> {
+    fn validate_unpad_pkcs7(&self) -> Result<Vec<u8>> {
         validate_unpad_pkcs7(self)
     }
 }
@@ -47,19 +46,31 @@ impl UnpadPkcs7 for Vec<u8> {
         unpad_pkcs7(self)
     }
 
-    fn validate_unpad_pkcs7(&self) -> anyhow::Result<Vec<u8>> {
+    fn validate_unpad_pkcs7(&self) -> Result<Vec<u8>> {
         validate_unpad_pkcs7(self)
     }
 }
 
-fn validate_unpad_pkcs7(data: &[u8]) -> anyhow::Result<Vec<u8>> {
+fn validate_unpad_pkcs7(data: &[u8]) -> Result<Vec<u8>> {
     let blocksize = 16;
-    ensure!(data.len() > 0);
-    ensure!(data.len() % blocksize == 0);
+    ensure!(
+        !data.is_empty(),
+        AesError::InvalidPadding("Empty data".into())
+    );
+    ensure!(
+        data.len() % blocksize == 0,
+        AesError::InvalidPadding(format!("Not multiple of blocksize: {}", data.len()))
+    );
 
     let last_byte = data[data.len() - 1];
-    ensure!(last_byte <= blocksize as u8);
-    ensure!(last_byte > 0);
+    ensure!(
+        last_byte <= blocksize as u8,
+        AesError::InvalidPadding(format!("last byte must be <= blocksize: {}", last_byte))
+    );
+    ensure!(
+        last_byte != 0,
+        AesError::InvalidPadding("last byte must not be 0".into())
+    );
 
     let expected = vec![last_byte; last_byte as usize];
     let ending = data
@@ -67,10 +78,14 @@ fn validate_unpad_pkcs7(data: &[u8]) -> anyhow::Result<Vec<u8>> {
         .rev()
         .take(last_byte as usize)
         .copied()
+        .rev()
         .collect::<Vec<_>>();
-    ensure!(ending == expected);
+    ensure!(
+        ending == expected,
+        AesError::InvalidPadding(format!("expected ending {:?}, got {:?}", expected, ending))
+    );
 
-    Ok(unpad_pkcs7(data))
+    Ok(data.unpad_pkcs7())
 }
 
 fn unpad_pkcs7(data: &[u8]) -> Vec<u8> {

@@ -1,8 +1,21 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, error::Error, fmt, iter::once};
 
 use anyhow::{bail, ensure, Result};
 use itertools::Itertools;
 use openssl::symm::{decrypt, encrypt, Cipher};
+
+#[derive(Debug)]
+pub enum AesError {
+    InvalidPadding(String),
+}
+
+impl Error for AesError {}
+
+impl fmt::Display for AesError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Mode {
@@ -12,7 +25,7 @@ pub enum Mode {
 
 use crate::{
     frequency::BYTES_BY_FREQ,
-    oracle::{CbcOracle, EncryptingOracle, ProfileOracle},
+    oracle::{CbcOracle, CbcPaddingOracle, EncryptingOracle, ProfileOracle},
     padding::{PadPkcs7, UnpadPkcs7},
     utils::bytes,
     xor::Xor,
@@ -65,7 +78,7 @@ pub fn decrypt_aes_cbc(bytes: &[u8], iv: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     let block_size = 16;
     ensure!(
         bytes.len() % block_size == 0,
-        "expected multiple of {block_size} expected, got {}",
+        "expected multiple of {block_size}, got {}",
         bytes.len()
     );
     let mut iv = iv;
@@ -76,7 +89,7 @@ pub fn decrypt_aes_cbc(bytes: &[u8], iv: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         iv = block;
     }
 
-    Ok(decrypted.unpad_pkcs7())
+    decrypted.validate_unpad_pkcs7()
 }
 
 fn encrypt_aes_ecb_block(bytes: &[u8], key: &[u8]) -> Result<Vec<u8>> {
@@ -287,6 +300,89 @@ pub fn break_cbc_bitflip(oracle: &CbcOracle) -> anyhow::Result<Vec<u8>> {
         }
     }
     Ok(patched)
+}
+
+pub fn break_cbc_padding_oracle(oracle: &CbcPaddingOracle) -> anyhow::Result<Vec<u8>> {
+    let blocksize = 16;
+    let ciphertext = oracle.ciphertext.clone();
+
+    fn break_block(
+        prev_block: &[u8],
+        block: &[u8],
+        oracle: &CbcPaddingOracle,
+    ) -> anyhow::Result<Vec<u8>> {
+        let blocksize = 16;
+        let mut probe_block = prev_block.to_vec();
+        let mut cleartext = vec![0; blocksize];
+
+        for byte_rhs_offset in 0..blocksize {
+            let byte_idx = blocksize - byte_rhs_offset - 1;
+            let pad_target: u8 = byte_rhs_offset as u8 + 1;
+
+            for pad_byte_idx in (byte_idx + 1)..blocksize {
+                probe_block[pad_byte_idx] =
+                    prev_block[pad_byte_idx] ^ cleartext[pad_byte_idx] ^ pad_target;
+            }
+
+            let cipher_byte = prev_block[byte_idx];
+            let mut possible_probe_bytes = vec![];
+
+            for probe_byte in u8::MIN..=u8::MAX {
+                probe_block[byte_idx] = probe_byte;
+                let mut ciphertext = vec![];
+                ciphertext.extend_from_slice(&probe_block);
+                ciphertext.extend_from_slice(block);
+                if oracle.check_padding(&ciphertext)? {
+                    // last byte of decrypted (lbd) == pad_target
+                    // lbd = intermediate ^ prev_block[byte]
+                    // prev_block[byte] ^ pad_target = intermediate[byte]
+                    // dbg!((
+                    //     probe_byte,
+                    //     block[byte_idx],
+                    //     pad_target,
+                    //     cipher_byte,
+                    //     probe_byte ^ pad_target ^ cipher_byte,
+                    //     &cleartext
+                    // ));
+                    let plaintext_byte = probe_byte ^ pad_target ^ cipher_byte;
+                    possible_probe_bytes.push((probe_byte, pad_target, plaintext_byte));
+                }
+            }
+            if possible_probe_bytes.len() == 1 {
+                let (_, _pad_target, plaintext_byte) = possible_probe_bytes[0];
+                cleartext[byte_idx] = plaintext_byte;
+            } else if possible_probe_bytes.len() == 2 {
+                let equals_byte = possible_probe_bytes.iter().find(
+                    |&(_probe_byte, pad_target, plaintext_byte)| pad_target == plaintext_byte,
+                );
+                ensure!(equals_byte.is_some());
+                let unequals_byte = possible_probe_bytes.iter().find(
+                    |&(_probe_byte, pad_target, plaintext_byte)| pad_target != plaintext_byte,
+                );
+                ensure!(unequals_byte.is_some());
+                let plaintext_byte = unequals_byte.unwrap().2;
+                cleartext[byte_idx] = plaintext_byte;
+            } else {
+                bail!("unknown state");
+            }
+        }
+
+        Ok(cleartext)
+    }
+
+    let iv = oracle.iv.to_owned();
+    let chunks = ciphertext.chunks(blocksize).map(|x| x.to_vec());
+    let prev_blocks = once(iv).chain(chunks);
+    let cur_blocks = ciphertext.chunks(blocksize).map(|x| x.to_vec());
+
+    let mut cleartext = vec![];
+
+    for (prev_block, cur_block) in prev_blocks.zip(cur_blocks) {
+        let out = break_block(&prev_block, &cur_block, oracle)?;
+        cleartext.extend(out);
+    }
+
+    Ok(cleartext.unpad_pkcs7())
 }
 
 #[cfg(test)]

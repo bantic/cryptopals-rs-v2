@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
-use rand::Rng;
-
 use crate::{aes, utils::bytes};
+use rand::Rng;
+use std::collections::HashMap;
 
 pub struct Oracle<T> {
     pub ciphertext: Vec<u8>,
@@ -220,7 +218,6 @@ impl CbcOracle {
 
     pub fn verify(&self, ciphertext: &[u8]) -> anyhow::Result<bool> {
         let result = self.decrypt(ciphertext)?;
-        dbg!(String::from_utf8_lossy(&result));
         Ok(String::from_utf8_lossy(&result).contains(&self.target))
     }
 }
@@ -234,6 +231,39 @@ impl Default for CbcOracle {
 impl EncryptingOracle for CbcOracle {
     fn encrypt(&self, padding: &[u8]) -> anyhow::Result<Vec<u8>> {
         self.encrypt(padding)
+    }
+}
+
+pub struct CbcPaddingOracle {
+    key: Vec<u8>,
+    pub iv: Vec<u8>,
+    pub plaintext: Vec<u8>,
+    pub ciphertext: Vec<u8>,
+}
+
+impl CbcPaddingOracle {
+    pub fn new(plaintext: Vec<u8>) -> anyhow::Result<Self> {
+        let blocksize = 16;
+        let key = bytes::rand_of_len(blocksize);
+        let iv = bytes::rand_of_len(blocksize);
+        let ciphertext = aes::encrypt_aes_cbc(&plaintext, &iv, &key)?;
+        Ok(CbcPaddingOracle {
+            key,
+            iv,
+            plaintext,
+            ciphertext,
+        })
+    }
+
+    pub fn check_padding(&self, ciphertext: &[u8]) -> anyhow::Result<bool> {
+        match aes::decrypt_aes_cbc(ciphertext, &self.iv, &self.key) {
+            Ok(_) => Ok(true),
+            Err(_e) => Ok(false),
+        }
+    }
+
+    pub fn verify(&self, plaintext: &[u8]) -> bool {
+        self.plaintext == plaintext
     }
 }
 
