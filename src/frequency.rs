@@ -70,7 +70,7 @@ lazy_static! {
         let mut bytes = vec![];
         for (fc, _pct) in CHAR_FREQUENCY
             .iter()
-            .sorted_by_key(|&(_fc, pct)| (1000.0 * pct) as u32)
+            .sorted_by_key(|&(_fc, pct)| (10000.0 * pct) as u32)
             .rev()
         {
             if let FreqChar::AsciiChar(ch) = fc {
