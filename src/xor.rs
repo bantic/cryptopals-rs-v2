@@ -111,5 +111,15 @@ pub fn break_repeating_key_xor(bytes: &[u8]) -> Vec<u8> {
         let block_key = break_single_key_key(&block);
         key.push(block_key);
     }
-    bytes.xor(&key)
+    key
+}
+
+pub fn break_repeating_key_xor_with_keysize(bytes: &[u8], keysize: usize) -> Vec<u8> {
+    let blocks = transpose_blocks(bytes, keysize);
+    let mut key = vec![];
+    for block in blocks {
+        let block_key = break_single_key_key(&block);
+        key.push(block_key);
+    }
+    key
 }

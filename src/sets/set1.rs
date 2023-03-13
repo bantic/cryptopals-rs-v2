@@ -52,19 +52,20 @@ fn challenge5() {
 
 fn challenge6() {
     let input = base64::from_file_str(CHALLENGE6_INPUT);
-    let decoded = break_repeating_key_xor(&input);
+    let key = break_repeating_key_xor(&input);
+    let decrypted = input.xor(&key);
     println!(
         "✅ Challenge 6:\n\t{}",
-        utils::truncate(String::from_utf8_lossy(&decoded).into())
+        utils::truncate(String::from_utf8_lossy(&decrypted).into())
     );
 }
 
 fn challenge7() -> Result<()> {
     let input = base64::from_file_str(CHALLENGE7_INPUT);
-    let decoded = aes::decrypt_aes_ecb(&input, CHALLENGE7_KEY)?;
+    let decrypted = aes::decrypt_aes_ecb(&input, CHALLENGE7_KEY)?;
     println!(
         "✅ Challenge 7:\n\t{}",
-        utils::truncate(String::from_utf8_lossy(&decoded).into())
+        utils::truncate(String::from_utf8_lossy(&decrypted).into())
     );
     Ok(())
 }
@@ -112,6 +113,8 @@ mod tests {
         xor::{break_repeating_key_xor, break_single_key, break_single_key_multilines, Xor},
     };
 
+    use anyhow::Result;
+
     #[test]
     fn test_challenge2() {
         let out = CHALLENGE2_LHS
@@ -144,11 +147,12 @@ mod tests {
     }
 
     #[test]
-    fn test_challenge6() {
+    fn test_challenge6() -> Result<()> {
         let input = base64::from_file_str(CHALLENGE6_INPUT);
-        let decoded = break_repeating_key_xor(&input);
-        let decoded = String::from_utf8_lossy(&decoded);
-        assert_eq!(decoded, CHALLENGE6_EXPECTED);
+        let key = break_repeating_key_xor(&input);
+        let decrypted = String::from_utf8(input.xor(&key))?;
+        assert_eq!(decrypted, CHALLENGE6_EXPECTED);
+        Ok(())
     }
 
     #[test]

@@ -3,7 +3,7 @@ use crate::{
     base64::DecodeBase64,
     oracle::CbcPaddingOracle,
     utils::bytes,
-    xor::break_repeating_key_xor,
+    xor::{break_repeating_key_xor_with_keysize, Xor},
 };
 use anyhow::{ensure, Result};
 
@@ -16,7 +16,7 @@ fn challenge17() -> Result<()> {
         let result = break_cbc_padding_oracle(&oracle)?;
 
         let emoji = if oracle.verify(&result) { "✅" } else { "❌" };
-        println!("{emoji} {}", String::from_utf8(result)?);
+        println!("\t{emoji} {}", String::from_utf8(result)?);
     }
     Ok(())
 }
@@ -28,21 +28,22 @@ fn challenge18() -> Result<()> {
     let nonce: u64 = 0;
     let key = "YELLOW SUBMARINE".as_bytes();
     let plaintext = decrypt_aes_ctr(&ciphertext, key, nonce)?;
-    println!("✅ {}", String::from_utf8(plaintext)?);
+    println!("\t ✅ {}", String::from_utf8(plaintext)?);
     Ok(())
 }
 
-fn challenge19() -> Result<()> {
+fn challenge19() -> Result<bool> {
     println!("Challenge 19: Break Fixed-Nonce CTR");
-    let b64_plaintexts = include_str!("../files/ctr-plaintexts-b64.txt");
+    let b64_plaintexts = include_str!("../files/ctr-plaintexts-b64-20.txt");
     let blocksize = 16;
     let nonce: u64 = 0;
     let key = bytes::rand_of_len(blocksize);
     let mut ciphertexts = vec![];
+    let mut plaintexts = vec![];
     for line in b64_plaintexts.lines() {
         let plaintext = line.trim().decode_base64();
-        println!("{}", String::from_utf8_lossy(&plaintext));
         let ciphertext = encrypt_aes_ctr(&plaintext, &key, nonce)?;
+        plaintexts.push(plaintext);
         ciphertexts.push(ciphertext);
     }
 
@@ -54,11 +55,28 @@ fn challenge19() -> Result<()> {
         full_ciphertext.extend_from_slice(slice);
     }
 
-    dbg!(repeat_len);
-    let result = break_repeating_key_xor(&full_ciphertext);
-    println!("{}", String::from_utf8_lossy(&result));
+    let broken_key = break_repeating_key_xor_with_keysize(&full_ciphertext, repeat_len);
+    let full_plaintext = full_ciphertext.xor(&broken_key);
+    let mut correct = 0;
+    let mut incorrect = 0;
+    for (plaintext, decrypted) in full_plaintext.chunks(repeat_len).zip(plaintexts) {
+        if plaintext[..repeat_len] == decrypted[..repeat_len] {
+            correct += 1;
+        } else {
+            incorrect += 1;
+        }
+    }
 
-    Ok(())
+    if incorrect == 0 {
+        println!("\t✅ {correct} / {correct} decrypted");
+    } else {
+        println!(
+            "\t❌ {incorrect} / {} failed to decrypt correctly",
+            correct + incorrect
+        );
+    }
+
+    Ok(incorrect == 0)
 }
 
 pub fn main() -> Result<()> {
@@ -75,6 +93,7 @@ mod tests {
         aes::{break_cbc_padding_oracle, decrypt_aes_ctr, encrypt_aes_ctr},
         base64::DecodeBase64,
         oracle::CbcPaddingOracle,
+        sets::set3::challenge19,
         utils::bytes,
     };
     use anyhow::Result;
@@ -106,7 +125,7 @@ mod tests {
             "Yo, VIP Let's kick it Ice, Ice, baby Ice, Ice, baby "
         );
 
-        for _ in 0..=100 {
+        for _ in 0..100 {
             let blocksize = 16;
             let len = rng.gen_range(16..=100);
             let plaintext = bytes::rand_of_len(len);
@@ -118,6 +137,13 @@ mod tests {
             assert_eq!(decrypted, plaintext);
         }
 
+        Ok(())
+    }
+    #[test]
+    fn test_challenge19() -> Result<()> {
+        for _ in 0..10 {
+            assert!(challenge19()?);
+        }
         Ok(())
     }
 }
