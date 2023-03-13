@@ -21,6 +21,7 @@ impl fmt::Display for AesError {
 pub enum Mode {
     ECB,
     CBC,
+    CTR,
 }
 
 use crate::{
@@ -72,6 +73,28 @@ pub fn encrypt_aes_cbc(bytes: &[u8], iv: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     }
 
     Ok(encrypted)
+}
+
+pub fn encrypt_aes_ctr(bytes: &[u8], key: &[u8], nonce: u64) -> Result<Vec<u8>> {
+    stream_aes_ctr(bytes, key, nonce)
+}
+
+fn stream_aes_ctr(bytes: &[u8], key: &[u8], nonce: u64) -> Result<Vec<u8>> {
+    let blocksize = 16;
+    let mut out = vec![];
+    for (idx, block) in bytes.chunks(blocksize).enumerate() {
+        let mut ctr = vec![];
+        ctr.extend_from_slice(&nonce.to_le_bytes());
+        ctr.extend_from_slice(&(idx as u64).to_le_bytes());
+        let mut keystream = encrypt_aes_ecb(&ctr, key)?;
+        keystream.truncate(block.len());
+        out.extend_from_slice(&keystream.xor(block));
+    }
+    Ok(out)
+}
+
+pub fn decrypt_aes_ctr(bytes: &[u8], key: &[u8], nonce: u64) -> Result<Vec<u8>> {
+    stream_aes_ctr(bytes, key, nonce)
 }
 
 pub fn decrypt_aes_cbc(bytes: &[u8], iv: &[u8], key: &[u8]) -> Result<Vec<u8>> {

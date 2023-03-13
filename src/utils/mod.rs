@@ -19,12 +19,4 @@ pub mod bytes {
         (0..len).for_each(|_| v.push(rand::random()));
         v
     }
-
-    // pub fn extend_n(bytes: &[u8], times: usize) -> Vec<u8> {
-    //     let mut extended = bytes.to_vec();
-    //     for _ in 0..=times {
-    //         extended.extend(bytes);
-    //     }
-    //     extended
-    // }
 }
