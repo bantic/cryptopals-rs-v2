@@ -9,6 +9,18 @@ pub fn truncate(s: String) -> String {
     }
 }
 
+pub mod time {
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    pub fn now() -> Duration {
+        let start = SystemTime::now();
+        let since_the_epoch = start
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+        since_the_epoch
+    }
+}
+
 pub mod bytes {
     pub fn of_len(len: usize, val: u8) -> Vec<u8> {
         vec![val; len]

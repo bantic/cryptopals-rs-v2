@@ -3,6 +3,7 @@ pub mod base64;
 pub mod frequency;
 pub mod hamming;
 pub mod hex;
+pub mod mersenne;
 pub mod oracle;
 pub mod padding;
 pub mod sets;

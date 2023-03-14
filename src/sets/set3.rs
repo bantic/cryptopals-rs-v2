@@ -1,6 +1,7 @@
 use crate::{
     aes::{break_cbc_padding_oracle, decrypt_aes_ctr, encrypt_aes_ctr},
     base64::DecodeBase64,
+    mersenne::Mt19937,
     oracle::CbcPaddingOracle,
     utils::bytes,
     xor::{break_repeating_key_xor_with_keysize, Xor},
@@ -32,8 +33,8 @@ fn challenge18() -> Result<()> {
     Ok(())
 }
 
-fn challenge19() -> Result<bool> {
-    println!("Challenge 19: Break Fixed-Nonce CTR");
+fn challenge19_20() -> Result<bool> {
+    println!("Challenge 19/20: Break Fixed-Nonce CTR");
     let b64_plaintexts = include_str!("../files/ctr-plaintexts-b64-20.txt");
     let blocksize = 16;
     let nonce: u64 = 0;
@@ -79,11 +80,21 @@ fn challenge19() -> Result<bool> {
     Ok(incorrect == 0)
 }
 
+fn challenge21() -> Result<()> {
+    println!("Challenge 21: Implement mt19337");
+    let mut rnd = Mt19937::new(Some(0));
+    for _ in 0..=25 {
+        println!("{}", rnd.gen());
+    }
+    Ok(())
+}
+
 pub fn main() -> Result<()> {
     println!("\n========= Set 3 =======\n-----------------------");
     challenge17()?;
     challenge18()?;
-    challenge19()?;
+    challenge19_20()?;
+    challenge21()?;
     Ok(())
 }
 
@@ -93,7 +104,7 @@ mod tests {
         aes::{break_cbc_padding_oracle, decrypt_aes_ctr, encrypt_aes_ctr},
         base64::DecodeBase64,
         oracle::CbcPaddingOracle,
-        sets::set3::challenge19,
+        sets::set3::challenge19_20,
         utils::bytes,
     };
     use anyhow::Result;
@@ -142,7 +153,7 @@ mod tests {
     #[test]
     fn test_challenge19() -> Result<()> {
         for _ in 0..10 {
-            assert!(challenge19()?);
+            assert!(challenge19_20()?);
         }
         Ok(())
     }
