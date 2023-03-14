@@ -84,7 +84,7 @@ fn challenge21() -> Result<()> {
     println!("Challenge 21: Implement mt19337");
     let mut rnd = Mt19937::new(Some(0));
     for _ in 0..=25 {
-        println!("{}", rnd.gen());
+        println!("{}", rnd.temper());
     }
     Ok(())
 }

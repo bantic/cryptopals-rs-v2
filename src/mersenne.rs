@@ -18,6 +18,7 @@ pub struct Mt19937 {
 }
 
 // Reference: https://github.com/anneouyang/MT19937/blob/master/code/implement_mt19937.py
+// and https://en.wikipedia.org/wiki/Mersenne_Twister#Algorithmic_detail
 impl Mt19937 {
     pub fn new(seed: Option<u64>) -> Self {
         let seed = match seed {
@@ -73,7 +74,7 @@ impl Mt19937 {
         self.cnt = 0;
     }
 
-    pub fn gen(&mut self) -> u64 {
+    pub fn temper(&mut self) -> u64 {
         if self.cnt == self.n {
             self.twist();
         }
