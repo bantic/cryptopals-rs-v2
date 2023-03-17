@@ -87,3 +87,21 @@ impl Mt19937 {
         y & ((1 << self.w) - 1)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Mt19937;
+
+    #[test]
+    fn test_mt19937() {
+        // validated at https://replit.com/@CoryForsyth/twister
+
+        let mut mt = Mt19937::new(Some(0));
+        let nums: Vec<u64> = (0..=2).map(|_| mt.temper()).collect();
+        assert_eq!(nums, [2357136044, 2546248239, 3071714933]);
+
+        let mut mt = Mt19937::new(Some(1));
+        let nums: Vec<u64> = (0..=2).map(|_| mt.temper()).collect();
+        assert_eq!(nums, [1791095845, 4282876139, 3093770124]);
+    }
+}

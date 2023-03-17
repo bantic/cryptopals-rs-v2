@@ -81,8 +81,17 @@ fn challenge19_20() -> Result<bool> {
 }
 
 fn challenge21() -> Result<()> {
-    println!("Challenge 21: Implement mt19337");
-    let mut rnd = Mt19937::new(Some(0));
+    println!("Challenge 21: Implement mt19937");
+    let mut rnd = Mt19937::new(Some(1));
+    for _ in 0..=25 {
+        println!("{}", rnd.temper());
+    }
+    Ok(())
+}
+
+fn challenge22() -> Result<()> {
+    println!("Challenge 22: Crack MT19937 Seed");
+    let mut rnd = Mt19937::new(Some(1));
     for _ in 0..=25 {
         println!("{}", rnd.temper());
     }
@@ -95,6 +104,7 @@ pub fn main() -> Result<()> {
     challenge18()?;
     challenge19_20()?;
     challenge21()?;
+    challenge22()?;
     Ok(())
 }
 
