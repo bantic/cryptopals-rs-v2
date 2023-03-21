@@ -1,7 +1,7 @@
 use crate::{
     aes::{break_cbc_padding_oracle, decrypt_aes_ctr, encrypt_aes_ctr},
     base64::DecodeBase64,
-    mersenne::Mt19937,
+    mersenne::{crack_random_mt19937, random_mt19937, Mt19937},
     oracle::CbcPaddingOracle,
     utils::bytes,
     xor::{break_repeating_key_xor_with_keysize, Xor},
@@ -82,19 +82,21 @@ fn challenge19_20() -> Result<bool> {
 
 fn challenge21() -> Result<()> {
     println!("Challenge 21: Implement mt19937");
-    let mut rnd = Mt19937::new(Some(1));
-    for _ in 0..=25 {
-        println!("{}", rnd.temper());
+    let seed = 1;
+    let mut rnd = Mt19937::new(Some(seed));
+    for idx in 0..=3 {
+        println!("\tSeed {seed} #{} -> {}", idx + 1, rnd.temper());
     }
     Ok(())
 }
 
 fn challenge22() -> Result<()> {
     println!("Challenge 22: Crack MT19937 Seed");
-    let mut rnd = Mt19937::new(Some(1));
-    for _ in 0..=25 {
-        println!("{}", rnd.temper());
-    }
+
+    let mut rnd = random_mt19937()?;
+    let seed = crack_random_mt19937(&mut rnd)?;
+    let emoji = if seed == rnd.seed { "✅" } else { "❌" };
+    println!("\t{emoji}: ({seed})");
     Ok(())
 }
 
@@ -113,6 +115,7 @@ mod tests {
     use crate::{
         aes::{break_cbc_padding_oracle, decrypt_aes_ctr, encrypt_aes_ctr},
         base64::DecodeBase64,
+        mersenne::{crack_random_mt19937, random_mt19937},
         oracle::CbcPaddingOracle,
         sets::set3::challenge19_20,
         utils::bytes,
@@ -164,6 +167,16 @@ mod tests {
     fn test_challenge19() -> Result<()> {
         for _ in 0..10 {
             assert!(challenge19_20()?);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_challenge22() -> Result<()> {
+        for _ in 0..10 {
+            let mut rnd = random_mt19937()?;
+            let seed = crack_random_mt19937(&mut rnd)?;
+            assert_eq!(seed, rnd.seed);
         }
         Ok(())
     }

@@ -1,5 +1,9 @@
+use anyhow::bail;
+use rand::Rng;
+use std::{thread, time};
+
 pub struct Mt19937 {
-    seed: u64,
+    pub seed: u64,
     cnt: u64,
     w: u64,
     n: u64,
@@ -88,9 +92,81 @@ impl Mt19937 {
     }
 }
 
+pub fn random_mt19937() -> anyhow::Result<Mt19937> {
+    let mut rng = rand::thread_rng();
+
+    let duration = time::Duration::from_millis(rng.gen_range(0..=100));
+    thread::sleep(duration);
+
+    let seed = time::SystemTime::now()
+        .duration_since(time::SystemTime::UNIX_EPOCH)?
+        .as_millis()
+        / 1_000; // TODO -- if we don't reduce the seed, we end up getting a
+                 // panic in the temper function.
+                 // Something incorrect w/ the temper function.
+
+    let duration = time::Duration::from_millis(rng.gen_range(0..=100));
+    thread::sleep(duration);
+
+    Ok(Mt19937::new(Some(seed as u64)))
+}
+
+pub fn crack_random_mt19937(rnd: &mut Mt19937) -> anyhow::Result<u64> {
+    let seed = time::SystemTime::now()
+        .duration_since(time::SystemTime::UNIX_EPOCH)?
+        .as_millis()
+        / 1_000; // See the TODO in random_mt19937
+
+    let sequence: Vec<u64> = (0..=10).map(|_| rnd.temper()).collect();
+
+    for delta in 0..=200 {
+        for dir in [-1i8, 1i8] {
+            let possible_seed = match dir {
+                -1 => seed - delta,
+                1 => seed + delta,
+                _ => bail!("bad dir"),
+            } as u64;
+            let mut possible_rnd = Mt19937::new(Some(possible_seed));
+            let possible_sequence: Vec<u64> = (0..=10).map(|_| possible_rnd.temper()).collect();
+
+            if compare_seqs(&sequence, &possible_sequence) {
+                return Ok(possible_seed);
+            }
+        }
+    }
+
+    bail!("Could not crack seed");
+}
+
+// checks if any ending sub-slice of rhs equals the start of lhs
+fn compare_seqs(lhs: &[u64], rhs: &[u64]) -> bool {
+    //   1 2 [ 3 4   5 6 ]
+    // [ 1 2   3 4 ] 5 6
+    if lhs == rhs {
+        return true;
+    }
+    for size in 1..rhs.len() {
+        dbg!((size, lhs, &rhs[size..]));
+        if lhs.starts_with(&rhs[size..]) {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::mersenne::compare_seqs;
+
     use super::Mt19937;
+
+    #[test]
+    fn test_compare_seqs() {
+        assert!(compare_seqs(&[1, 2, 3, 4], &[1, 2, 3, 4]));
+        assert!(compare_seqs(&[1, 2, 3, 4], &[15, 14, 1, 2]));
+        assert!(compare_seqs(&[1, 2, 3], &[14, 1, 2]));
+        assert!(!compare_seqs(&[3, 3, 4], &[14, 1, 2]));
+    }
 
     #[test]
     fn test_mt19937() {
