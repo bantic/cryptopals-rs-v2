@@ -70,11 +70,11 @@ impl Mt19937 {
         if self.count == N {
             self.twist();
         }
-        let y = self.mt[self.count as usize];
-        let y = y ^ ((y >> U) & D);
-        let y = y ^ ((y << S) & B);
-        let y = y ^ ((y << T) & C);
-        let y = y ^ (y >> L);
+        let mut y = self.mt[self.count as usize];
+        y ^= (y >> U) & D;
+        y ^= (y << S) & B;
+        y ^= (y << T) & C;
+        y ^= y >> L;
         self.count += 1;
         y
     }
