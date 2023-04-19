@@ -14,10 +14,9 @@ pub mod time {
 
     pub fn now() -> Duration {
         let start = SystemTime::now();
-        let since_the_epoch = start
+        start
             .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
-        since_the_epoch
+            .expect("Time went backwards")
     }
 }
 

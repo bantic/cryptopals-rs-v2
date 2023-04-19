@@ -30,7 +30,7 @@ impl Mt19937 {
     pub fn new(seed: Option<u32>) -> Self {
         let seed = match seed {
             Some(s) => s,
-            None => crate::utils::time::now().as_secs() as u32,
+            None => crate::utils::time::now().as_micros() as u32,
         };
         let mut out = Mt19937 {
             seed,
