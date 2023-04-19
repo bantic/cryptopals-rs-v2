@@ -86,12 +86,7 @@ pub fn random_mt19937() -> anyhow::Result<Mt19937> {
     let duration = time::Duration::from_millis(rng.gen_range(0..=100));
     thread::sleep(duration);
 
-    let seed = time::SystemTime::now()
-        .duration_since(time::SystemTime::UNIX_EPOCH)?
-        .as_millis()
-        / 1_000; // TODO -- if we don't reduce the seed, we end up getting a
-                 // panic in the temper function.
-                 // Something incorrect w/ the temper function.
+    let seed = crate::utils::time::now().as_millis() as u32;
 
     let duration = time::Duration::from_millis(rng.gen_range(0..=100));
     thread::sleep(duration);
@@ -100,10 +95,7 @@ pub fn random_mt19937() -> anyhow::Result<Mt19937> {
 }
 
 pub fn crack_random_mt19937(rnd: &mut Mt19937) -> anyhow::Result<u32> {
-    let seed = time::SystemTime::now()
-        .duration_since(time::SystemTime::UNIX_EPOCH)?
-        .as_millis()
-        / 1_000; // See the TODO in random_mt19937
+    let seed = crate::utils::time::now().as_millis() as u32;
 
     let sequence: Vec<u32> = (0..=10).map(|_| rnd.temper()).collect();
 
@@ -134,7 +126,6 @@ fn compare_seqs(lhs: &[u32], rhs: &[u32]) -> bool {
         return true;
     }
     for size in 1..rhs.len() {
-        dbg!((size, lhs, &rhs[size..]));
         if lhs.starts_with(&rhs[size..]) {
             return true;
         }
